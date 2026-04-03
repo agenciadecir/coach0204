@@ -1,0 +1,316 @@
+// Schema para desarrollo local con SQLite
+// Este archivo es para desarrollo local únicamente
+// Para producción, usa schema.prisma con PostgreSQL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String         @id @default(cuid())
+  email           String         @unique
+  name            String?
+  password        String
+  role            Role           @default(STUDENT)
+  isActive        Boolean        @default(true)
+  image           String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  createdDiets    Diet[]         @relation("CoachDiets")
+  notifications   Notification[]
+  payments        Payment[]      @relation("ReceivedPayments")
+  createdRoutines Routine[]      @relation("CoachRoutines")
+  studentProfile  Student?
+
+  @@map("users")
+}
+
+model Student {
+  id               String     @id @default(cuid())
+  userId           String     @unique
+  phone            String?
+  birthDate        DateTime?
+  address          String?
+  emergencyContact String?
+  goals            String?
+  notes            String?
+  startDate        DateTime   @default(now())
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+  diets            Diet[]
+  payments         Payment[]  @relation("StudentPayments")
+  progress         Progress[]
+  routines         Routine[]
+  user             User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("students")
+}
+
+model Exercise {
+  id               String                @id @default(cuid())
+  name             String
+  muscleGroup      String
+  description      String?
+  videoUrl         String?
+  imageUrl         String?
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+  combinedBy       ExerciseCombination[] @relation("ExerciseCombinationsB")
+  combinedWith     ExerciseCombination[] @relation("ExerciseCombinationsA")
+  routineExercises RoutineExercise[]
+
+  @@map("exercises")
+}
+
+model ExerciseCombination {
+  id              String   @id @default(cuid())
+  exerciseAId     String
+  exerciseBId     String
+  combinationType String
+  exerciseB       Exercise @relation("ExerciseCombinationsB", fields: [exerciseBId], references: [id], onDelete: Cascade)
+  exerciseA       Exercise @relation("ExerciseCombinationsA", fields: [exerciseAId], references: [id], onDelete: Cascade)
+
+  @@unique([exerciseAId, exerciseBId])
+  @@map("exercise_combinations")
+}
+
+model Routine {
+  id           String        @id @default(cuid())
+  studentId    String
+  name         String
+  description  String?
+  isArchived   Boolean       @default(false)
+  archivedAt   DateTime?
+  coachId      String
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  coach        User          @relation("CoachRoutines", fields: [coachId], references: [id])
+  student      Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  trainingDays TrainingDay[]
+
+  @@map("routines")
+}
+
+model TrainingDay {
+  id           String            @id @default(cuid())
+  routineId    String
+  name         String
+  dayNumber    Int               @default(1)
+  muscleGroups String?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  exercises    RoutineExercise[]
+  weeks        RoutineWeek[]
+  routine      Routine           @relation(fields: [routineId], references: [id], onDelete: Cascade)
+
+  @@index([routineId])
+  @@map("training_days")
+}
+
+model RoutineWeek {
+  id            String            @id @default(cuid())
+  trainingDayId String
+  weekNumber    Int               @default(1)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  exercises     RoutineExercise[]
+  trainingDay   TrainingDay       @relation(fields: [trainingDayId], references: [id], onDelete: Cascade)
+
+  @@index([trainingDayId])
+  @@map("routine_weeks")
+}
+
+model RoutineExercise {
+  id              String        @id @default(cuid())
+  trainingDayId   String?
+  weekId          String?
+  exerciseId      String?
+  exerciseName    String        @default("")
+  order           Int           @default(0)
+  sets            Int           @default(3)
+  reps            String        @default("10-12")
+  weight          String?
+  restTime        String?       @default("60")
+  notes           String?
+  studentNotes    String?
+  completedSets   String?
+  isSuperset      Boolean       @default(false)
+  supersetGroupId String?
+  supersetOrder   Int?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  exercise        Exercise?     @relation(fields: [exerciseId], references: [id])
+  trainingDay     TrainingDay?  @relation(fields: [trainingDayId], references: [id], onDelete: Cascade)
+  week            RoutineWeek?  @relation(fields: [weekId], references: [id], onDelete: Cascade)
+
+  @@index([trainingDayId])
+  @@index([weekId])
+  @@map("routine_exercises")
+}
+
+model Diet {
+  id            String    @id @default(cuid())
+  studentId     String
+  name          String
+  description   String?
+  totalCalories Int?
+  proteinGoal   Int?
+  carbsGoal     Int?
+  fatsGoal      Int?
+  isArchived    Boolean   @default(false)
+  archivedAt    DateTime?
+  isActive      Boolean   @default(true)
+  coachId       String
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  coach         User      @relation("CoachDiets", fields: [coachId], references: [id])
+  student       Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  meals         Meal[]
+
+  @@map("diets")
+}
+
+model Meal {
+  id        String   @id @default(cuid())
+  dietId    String
+  name      String
+  time      String?
+  order     Int      @default(0)
+  foods     String
+  calories  Int?
+  protein   Int?
+  carbs     Int?
+  fats      Int?
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  diet      Diet     @relation(fields: [dietId], references: [id], onDelete: Cascade)
+
+  @@index([dietId])
+  @@map("meals")
+}
+
+model Progress {
+  id           String   @id @default(cuid())
+  studentId    String
+  date         DateTime @default(now())
+  weight       Float?
+  height       Float?
+  bodyFat      Float?
+  muscleMass   Float?
+  neck         Float?
+  shoulders    Float?
+  chest        Float?
+  waist        Float?
+  hip          Float?
+  rightArm     Float?
+  leftArm      Float?
+  rightForearm Float?
+  leftForearm  Float?
+  rightThigh   Float?
+  leftThigh    Float?
+  rightCalf    Float?
+  leftCalf     Float?
+  frontPhoto   String?
+  backPhoto    String?
+  sidePhoto    String?
+  notes        String?
+  coachNotes   String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  student      Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId, date])
+  @@map("progress")
+}
+
+model PaymentSettings {
+  id                String   @id @default(cuid())
+  coachId           String   @unique
+  monthlyAmount     Float    @default(0)
+  currency          String   @default("ARS")
+  acceptCash        Boolean  @default(true)
+  acceptTransfer    Boolean  @default(true)
+  acceptMercadoPago Boolean  @default(false)
+  acceptOther       Boolean  @default(false)
+  cbu               String?
+  alias             String?
+  holderName        String?
+  mercadoPagoLink   String?
+  otherMethodInfo   String?
+  paymentDueDay     Int      @default(10)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("payment_settings")
+}
+
+model Payment {
+  id                  String        @id @default(cuid())
+  studentId           String
+  amount              Float
+  currency            String        @default("ARS")
+  status              PaymentStatus @default(PENDING)
+  month               Int
+  year                Int
+  dueDate             DateTime
+  paidDate            DateTime?
+  paymentMethod       String?
+  paymentMethodDetail String?
+  reference           String?
+  receiptUrl          String?
+  receiptUploadedAt   DateTime?
+  notificationSent    Boolean       @default(false)
+  notifiedAt          DateTime?
+  coachId             String
+  validatedAt         DateTime?
+  validatedBy         String?
+  rejectionReason     String?
+  isGift              Boolean       @default(false)
+  bonusPercentage     Int?
+  notes               String?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+  coach               User          @relation("ReceivedPayments", fields: [coachId], references: [id])
+  student             Student       @relation("StudentPayments", fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId])
+  @@index([status])
+  @@index([month, year])
+  @@map("payments")
+}
+
+model Notification {
+  id         String   @id @default(cuid())
+  userId     String
+  title      String
+  message    String
+  type       String
+  isRead     Boolean  @default(false)
+  entityType String?
+  entityId   String?
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@map("notifications")
+}
+
+enum Role {
+  COACH
+  STUDENT
+}
+
+enum PaymentStatus {
+  PENDING
+  PENDING_VALIDATION
+  PAID
+  OVERDUE
+  REJECTED
+  CANCELLED
+}

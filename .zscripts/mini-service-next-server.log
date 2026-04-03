@@ -1,0 +1,21 @@
+[next-server] Installing dependencies...
+bun install v1.3.10 (30e609e0)
+No packages! Deleted empty lockfile
+
+[11.00ms] done
+[next-server] Running bun run dev...
+$ bun --hot index.ts
+Starting Next.js server on port 3000...
+⨯ Failed to start server
+Error: listen EADDRINUSE: address already in use :::3000
+    at <unknown> (Error: listen EADDRINUSE: address already in use :::3000)
+    at new Promise (<anonymous>) {
+  code: 'EADDRINUSE',
+  errno: -98,
+  syscall: 'listen',
+  address: '::',
+  port: 3000
+}
+[?25h
+Server exited with code 1, signal null
+error: script "dev" exited with code 1

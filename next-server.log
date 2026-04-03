@@ -1,0 +1,14 @@
+$ bun --hot index.ts
+Starting Next.js server on port 3000...
+▲ Next.js 16.1.3 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://21.0.2.250:3000
+- Environments: .env
+
+✓ Starting...
+✓ Ready in 949ms
+ GET / 200 in 2.6s (compile: 2.3s, render: 293ms)
+prisma:query SELECT COUNT(*) AS `_count$_all` FROM (SELECT `main`.`users`.`id` FROM `main`.`users` WHERE 1=1 LIMIT ? OFFSET ?) AS `sub`
+ GET /api/auth/check-first-time 200 in 90ms (compile: 66ms, render: 24ms)
+ GET /api/auth/session 200 in 847ms (compile: 833ms, render: 13ms)
+ GET / 200 in 35ms (compile: 4ms, render: 31ms)
