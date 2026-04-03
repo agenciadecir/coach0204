@@ -3,8 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl  = env("DIRECT_URL")
 }
 
 model User {
@@ -89,6 +90,8 @@ model Routine {
   student      Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
   trainingDays TrainingDay[]
 
+  @@index([studentId])
+  @@index([coachId])
   @@map("routines")
 }
 
@@ -146,6 +149,7 @@ model RoutineExercise {
 
   @@index([trainingDayId])
   @@index([weekId])
+  @@index([exerciseId])
   @@map("routine_exercises")
 }
 
@@ -168,6 +172,8 @@ model Diet {
   student       Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
   meals         Meal[]
 
+  @@index([studentId])
+  @@index([coachId])
   @@map("diets")
 }
 
@@ -207,11 +213,11 @@ model Progress {
   rightArm     Float?
   leftArm      Float?
   rightForearm Float?
-  leftForearm  Float?
+  leftCalf     Float?
   rightThigh   Float?
   leftThigh    Float?
   rightCalf    Float?
-  leftCalf     Float?
+  leftForearm  Float?
   frontPhoto   String?
   backPhoto    String?
   sidePhoto    String?

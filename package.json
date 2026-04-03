@@ -13,8 +13,6 @@
     "db:migrate:prod": "prisma migrate deploy",
     "db:reset": "prisma migrate reset",
     "db:studio": "prisma studio",
-    "postinstall": "prisma generate",
-    "vercel-build": "cp prisma/schema.production.prisma prisma/schema.prisma && prisma generate && prisma db push && next build",
     "db:seed": "bun run seed.ts",
     "db:seed:prod": "prisma db seed",
     "db:export": "bun run scripts/export-data.ts",
@@ -91,7 +89,7 @@
     "zustand": "^5.0.6"
   },
   "prisma": {
-    "seed": "bun run seed.ts"
+    "seed": "npx tsx seed.ts"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -102,6 +100,7 @@
     "eslint": "^9",
     "eslint-config-next": "^16.1.1",
     "tailwindcss": "^4",
+    "tsx": "^4.21.0",
     "tw-animate-css": "^1.3.5",
     "typescript": "^5"
   }
