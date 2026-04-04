@@ -195,16 +195,16 @@ export function DietsView() {
             <CardContent>
               <div className="flex flex-col gap-3">
                 {diet.meals.map((meal) => (
-                  <div key={meal.id} className="p-3 rounded-xl bg-slate-700/30 group-hover:bg-slate-700/50 transition-colors w-fit">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="font-medium text-white">{meal.name}</span>
-                      {meal.time && (
-                        <Badge variant="outline" className="text-slate-400 border-slate-600 text-xs">
-                          {meal.time}
-                        </Badge>
-                      )}
+                  <div key={meal.id} className="flex items-stretch gap-4 rounded-xl bg-slate-700/30 group-hover:bg-slate-700/50 transition-colors overflow-hidden w-fit">
+                    {meal.time && (
+                      <div className="bg-orange-500/20 px-4 py-3 flex items-center justify-center min-w-[80px]">
+                        <span className="text-2xl font-bold text-orange-400">{meal.time}</span>
+                      </div>
+                    )}
+                    <div className="p-3">
+                      <span className="font-medium text-white block mb-1">{meal.name}</span>
+                      <p className="text-sm text-slate-300">{meal.foods}</p>
                     </div>
-                    <p className="text-sm text-slate-300">{meal.foods}</p>
                   </div>
                 ))}
               </div>
