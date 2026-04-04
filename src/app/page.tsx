@@ -30,6 +30,7 @@ import { DietsView } from '@/components/views/diets-view'
 import { ProgressView } from '@/components/views/progress-view'
 import { PaymentsView } from '@/components/views/payments-view'
 import { ExercisesView } from '@/components/views/exercises-view'
+import { AdminDashboardView } from '@/components/views/admin-dashboard-view'
 import { cn } from '@/lib/utils'
 
 export default function Home() {
@@ -254,8 +255,11 @@ export default function Home() {
   }
 
   const isCoach = session.user.role === 'COACH'
+  const isAdmin = session.user.role === 'ADMIN'
 
-  const navItems = isCoach ? [
+  const navItems = isAdmin ? [
+    { id: 'admin-dashboard', label: 'Dashboard', icon: Activity, gradient: 'from-purple-500 to-violet-600' },
+  ] : isCoach ? [
     { id: 'dashboard', label: 'Dashboard', icon: Activity, gradient: 'from-emerald-500 to-green-600' },
     { id: 'students', label: 'Alumnos', icon: Users, gradient: 'from-blue-500 to-indigo-600' },
     { id: 'exercises', label: 'Ejercicios', icon: Dumbbell, gradient: 'from-orange-500 to-amber-600' },
@@ -272,6 +276,10 @@ export default function Home() {
   const renderContent = () => {
     if (currentView === 'student-detail' && selectedStudentId) {
       return <StudentDetailView studentId={selectedStudentId} />
+    }
+    
+    if (currentView === 'admin-dashboard' || isAdmin) {
+      return <AdminDashboardView />
     }
     
     switch (currentView) {
@@ -368,7 +376,7 @@ export default function Home() {
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-white truncate">{session.user.name}</p>
               <p className="text-xs text-slate-400">
-                {isCoach ? 'Coach' : 'Alumno'}
+                {isAdmin ? 'Admin' : isCoach ? 'Coach' : 'Alumno'}
               </p>
             </div>
           </div>
