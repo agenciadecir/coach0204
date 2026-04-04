@@ -193,7 +193,7 @@ export function DietsView() {
               )}
             </CardHeader>
             <CardContent>
-              <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="flex flex-col gap-3">
                 {diet.meals.map((meal) => (
                   <div key={meal.id} className="p-3 rounded-xl bg-slate-700/30 group-hover:bg-slate-700/50 transition-colors">
                     <div className="flex items-center justify-between mb-2">
