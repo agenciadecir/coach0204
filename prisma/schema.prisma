@@ -305,6 +305,7 @@ model Notification {
 }
 
 enum Role {
+  ADMIN
   COACH
   STUDENT
 }
