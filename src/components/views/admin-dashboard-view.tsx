@@ -351,7 +351,7 @@ export function AdminDashboardView() {
                         )}
                       </div>
                     </div>
-                    <<div className="flex items-center gap-4">
+                    <div className="flex items-center gap-4">
   <div className="text-center min-w-[120px]">
     <p className="text-sm text-slate-400">Coach</p>
     <p className="text-white font-medium">{student.coachName || 'Sin asignar'}</p>
