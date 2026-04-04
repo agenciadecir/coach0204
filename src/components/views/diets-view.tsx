@@ -195,7 +195,7 @@ export function DietsView() {
             <CardContent>
               <div className="flex flex-col gap-3">
                 {diet.meals.map((meal) => (
-                  <div key={meal.id} className="p-3 rounded-xl bg-slate-700/30 group-hover:bg-slate-700/50 transition-colors">
+                  <div key={meal.id} className="p-3 rounded-xl bg-slate-700/30 group-hover:bg-slate-700/50 transition-colors w-fit">
                     <div className="flex items-center justify-between mb-2">
                       <span className="font-medium text-white">{meal.name}</span>
                       {meal.time && (
@@ -204,7 +204,7 @@ export function DietsView() {
                         </Badge>
                       )}
                     </div>
-                    <p className="text-sm text-slate-300 line-clamp-2">{meal.foods}</p>
+                    <p className="text-sm text-slate-300">{meal.foods}</p>
                   </div>
                 ))}
               </div>
