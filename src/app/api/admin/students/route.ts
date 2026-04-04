@@ -11,7 +11,6 @@ export async function GET() {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
     }
 
-    // Get all students with their user info
     const students = await db.student.findMany({
       select: {
         id: true,
@@ -25,34 +24,57 @@ export async function GET() {
             isActive: true,
             createdAt: true,
           }
-        },
-        routines: {
-          select: {
-            coachId: true,
-            coach: {
-              select: {
-                name: true
-              }
-            }
-          },
-          where: { isArchived: false },
-          take: 1
         }
       },
       orderBy: { startDate: 'desc' }
     })
 
-    // Transform data for frontend
-    const studentsData = students.map(student => ({
-      id: student.id,
-      userId: student.userId,
-      name: student.user.name,
-      email: student.user.email,
-      phone: student.phone,
-      isActive: student.user.isActive,
-      coachName: student.routines[0]?.coach?.name || null,
-      createdAt: student.user.createdAt.toISOString()
-    }))
+    const studentsData = await Promise.all(
+      students.map(async (student) => {
+        const routine = await db.routine.findFirst({
+          where: { studentId: student.id },
+          select: {
+            coach: { select: { name: true, email: true } }
+          },
+          orderBy: { createdAt: 'desc' }
+        })
+        
+        let coach = routine?.coach
+        if (!coach) {
+          const diet = await db.diet.findFirst({
+            where: { studentId: student.id },
+            select: {
+              coach: { select: { name: true, email: true } }
+            },
+            orderBy: { createdAt: 'desc' }
+          })
+          coach = diet?.coach
+        }
+        
+        if (!coach) {
+          const payment = await db.payment.findFirst({
+            where: { studentId: student.id },
+            select: {
+              coach: { select: { name: true, email: true } }
+            },
+            orderBy: { createdAt: 'desc' }
+          })
+          coach = payment?.coach
+        }
+        
+        return {
+          id: student.id,
+          userId: student.userId,
+          name: student.user.name,
+          email: student.user.email,
+          phone: student.phone,
+          isActive: student.user.isActive,
+          coachName: coach?.name || coach?.email?.split('@')[0] || null,
+          coachEmail: coach?.email || null,
+          createdAt: student.user.createdAt.toISOString()
+        }
+      })
+    )
 
     return NextResponse.json(studentsData)
   } catch (error) {

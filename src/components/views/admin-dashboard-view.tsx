@@ -38,6 +38,7 @@ interface Student {
   phone: string | null
   isActive: boolean
   coachName: string | null
+  coachEmail: string | null
   createdAt: string
 }
 
@@ -350,15 +351,18 @@ export function AdminDashboardView() {
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-4">
-                      <div className="text-center">
-                        <p className="text-sm text-slate-400">Coach</p>
-                        <p className="text-white font-medium">{student.coachName || 'Sin coach'}</p>
-                      </div>
-                      <Badge variant={student.isActive ? 'default' : 'secondary'} className={student.isActive ? 'bg-emerald-600' : ''}>
-                        {student.isActive ? 'Activo' : 'Inactivo'}
-                      </Badge>
-                    </div>
+                    <<div className="flex items-center gap-4">
+  <div className="text-center min-w-[120px]">
+    <p className="text-sm text-slate-400">Coach</p>
+    <p className="text-white font-medium">{student.coachName || 'Sin asignar'}</p>
+    {student.coachEmail && (
+      <p className="text-xs text-slate-500">{student.coachEmail}</p>
+    )}
+  </div>
+  <Badge variant={student.isActive ? 'default' : 'secondary'} className={student.isActive ? 'bg-emerald-600' : ''}>
+    {student.isActive ? 'Activo' : 'Inactivo'}
+  </Badge>
+</div>
                   </div>
                 </CardContent>
               </Card>

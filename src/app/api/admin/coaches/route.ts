@@ -24,20 +24,37 @@ export async function GET() {
       orderBy: { createdAt: 'desc' }
     })
 
-    // Count students for each coach (through routines)
+    // Get student count for each coach through routines, diets and payments
     const coachesWithCount = await Promise.all(
       coaches.map(async (coach) => {
-        // Count distinct students that have routines created by this coach
-        const studentsWithRoutines = await db.routine.findMany({
-          where: { coachId: coach.id },
-          select: { studentId: true },
-          distinct: ['studentId']
-        })
+        const [routinesStudents, dietsStudents, paymentsStudents] = await Promise.all([
+          db.routine.findMany({
+            where: { coachId: coach.id },
+            select: { studentId: true },
+            distinct: ['studentId']
+          }),
+          db.diet.findMany({
+            where: { coachId: coach.id },
+            select: { studentId: true },
+            distinct: ['studentId']
+          }),
+          db.payment.findMany({
+            where: { coachId: coach.id },
+            select: { studentId: true },
+            distinct: ['studentId']
+          })
+        ])
+        
+        const allStudentIds = new Set([
+          ...routinesStudents.map(r => r.studentId),
+          ...dietsStudents.map(d => d.studentId),
+          ...paymentsStudents.map(p => p.studentId)
+        ])
         
         return {
           ...coach,
           _count: {
-            students: studentsWithRoutines.length
+            students: allStudentIds.size
           }
         }
       })
