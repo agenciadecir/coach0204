@@ -9,6 +9,7 @@ interface Product {
   id: string
   name: string
   price: string
+  originalPrice: string | null
   imageUrl: string
   productUrl: string
   description: string | null
@@ -91,9 +92,16 @@ export function StoreView() {
               <h3 className="font-medium text-white line-clamp-2 mb-2 min-h-[48px]">
                 {product.name}
               </h3>
-              <p className="text-xl font-bold text-orange-400 mb-3">
-                {product.price}
-              </p>
+              <div className="mb-3">
+                {product.originalPrice && (
+                  <p className="text-sm text-slate-400 line-through">
+                    {product.originalPrice}
+                  </p>
+                )}
+                <p className="text-xl font-bold text-orange-400">
+                  {product.price}
+                </p>
+              </div>
               {product.description && (
                 <p className="text-sm text-slate-400 line-clamp-2 mb-3">
                   {product.description}

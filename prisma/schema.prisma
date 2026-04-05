@@ -1,12 +1,14 @@
+// Schema para desarrollo local con SQLite
+// Este archivo es para desarrollo local únicamente
+// Para producción, usa schema.prisma con PostgreSQL
+
 generator client {
-  provider      = "prisma-client-js"
-  binaryTargets = ["native", "rhel-openssl-3.0.x"]
+  provider = "prisma-client-js"
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl  = env("DIRECT_URL")
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
 }
 
 model User {
@@ -91,8 +93,6 @@ model Routine {
   student      Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
   trainingDays TrainingDay[]
 
-  @@index([studentId])
-  @@index([coachId])
   @@map("routines")
 }
 
@@ -150,7 +150,6 @@ model RoutineExercise {
 
   @@index([trainingDayId])
   @@index([weekId])
-  @@index([exerciseId])
   @@map("routine_exercises")
 }
 
@@ -173,8 +172,6 @@ model Diet {
   student       Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
   meals         Meal[]
 
-  @@index([studentId])
-  @@index([coachId])
   @@map("diets")
 }
 
@@ -214,11 +211,11 @@ model Progress {
   rightArm     Float?
   leftArm      Float?
   rightForearm Float?
-  leftCalf     Float?
+  leftForearm  Float?
   rightThigh   Float?
   leftThigh    Float?
   rightCalf    Float?
-  leftForearm  Float?
+  leftCalf     Float?
   frontPhoto   String?
   backPhoto    String?
   sidePhoto    String?
@@ -303,16 +300,18 @@ model Notification {
   @@index([userId, isRead])
   @@map("notifications")
 }
+
 model Product {
-  id          String   @id @default(cuid())
-  name        String
-  price       String
-  imageUrl    String
-  productUrl  String
-  description String?
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id            String   @id @default(cuid())
+  name          String
+  price         String
+  originalPrice String?
+  imageUrl      String
+  productUrl    String
+  description   String?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   @@map("products")
 }

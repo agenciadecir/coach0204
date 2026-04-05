@@ -55,6 +55,7 @@ export async function POST(req: NextRequest) {
         data: {
           name: extractedData.name,
           price: extractedData.price,
+          originalPrice: extractedData.originalPrice || null,
           imageUrl: extractedData.imageUrl,
           productUrl: productUrl,
           description: description || null
@@ -112,6 +113,7 @@ async function resolveShortUrl(url: string): Promise<string> {
 async function extractMercadoLibreInfo(url: string): Promise<{
   name: string
   price: string
+  originalPrice?: string
   imageUrl: string
 } | null> {
   try {
@@ -175,143 +177,114 @@ async function extractMercadoLibreInfo(url: string): Promise<{
       }
     }
 
-    // Extract price - Mercado Libre structure:
-    // - Original price (tachado/struck-through) - usually has class "previous" or inside <s> tags
-    // - Current price (con descuento) - the ACTUAL price the customer pays
-    // We need to find the CURRENT price, not the original struck-through price
+    // ========================================
+    // EXTRACT PRICES - Mercado Libre Structure
+    // ========================================
+    // The HTML structure typically has:
+    // 1. A container with "ui-pdp-price" class
+    // 2. Inside: the original price (tachado) with class "previous" 
+    // 3. The current price (precio real de venta) WITHOUT "previous" class
     
-    let price = ''
+    let currentPrice = ''  // Precio real de venta (lo que queremos)
+    let originalPrice = '' // Precio de lista tachado (opcional)
     
-    // Method 1: Find price in the MAIN price container (not struck-through)
-    // Look for andes-money-amount that does NOT have "previous" class
-    // The main price container usually has classes like "andes-money-amount--discount" or no special class
+    // Find the main price section
+    const priceSectionMatch = html.match(/<div[^>]*class="[^"]*ui-pdp-price[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<\/div>\s*<\/div>/i)
     
-    // First, find all price containers and their context
-    const allPriceMatches = [...html.matchAll(/<div[^>]*class="[^"]*andes-money-amount[^"]*"[^>]*>([\s\S]*?)<\/div>/gi)]
-    console.log('Found', allPriceMatches.length, 'price containers')
-    
-    for (const match of allPriceMatches) {
-      const containerHtml = match[0]
-      const containerClass = containerHtml.match(/class="([^"]*)"/i)?.[1] || ''
-      const startIndex = match.index!
-      const contextBefore = html.substring(Math.max(0, startIndex - 500), startIndex)
+    if (priceSectionMatch) {
+      const priceSection = priceSectionMatch[1]
+      console.log('Found price section, length:', priceSection.length)
       
-      // Check if this is a PREVIOUS/struck-through price - SKIP THESE
-      const isPrevious = 
-        containerClass.includes('previous') ||
-        containerClass.includes('andes-money-amount--previous') ||
-        contextBefore.includes('<s>') ||
-        contextBefore.includes('</s>')
+      // Find all price values in this section
+      const allPricesInSection = [...priceSection.matchAll(/<span[^>]*class="[^"]*andes-money-amount__fraction[^"]*"[^>]*>([\s\S]*?)<\/span>/gi)]
       
-      if (isPrevious) {
-        // Extract price for logging
-        const prevPriceMatch = containerHtml.match(/<span[^>]*class="[^"]*andes-money-amount__fraction[^"]*"[^>]*>([\s\S]*?)<\/span>/i)
-        if (prevPriceMatch) {
-          console.log('Skipping PREVIOUS price:', cleanHtml(prevPriceMatch[1]))
-        }
-        continue
-      }
+      console.log('Found', allPricesInSection.length, 'prices in main section')
       
-      // This should be the CURRENT price (with discount if applicable)
-      // Check if it's the main product price (in the price section, not recommendations)
-      const isInMainSection = 
-        contextBefore.includes('ui-pdp-price') ||
-        contextBefore.includes('price-tag') ||
-        contextBefore.includes('ui-pdp-container') ||
-        contextBefore.includes('short-description')
-      
-      // Skip if it's in recommendations/related products
-      const isInRecommendations = 
-        contextBefore.includes('recommendation') ||
-        contextBefore.includes('related') ||
-        contextBefore.includes('carousel') ||
-        contextBefore.includes('also-viewed') ||
-        contextBefore.includes('advertising') ||
-        contextBefore.includes('otros-vendedores')
-      
-      if (isInRecommendations) {
-        console.log('Skipping recommendation price')
-        continue
-      }
-      
-      // Extract the price from this container
-      const priceMatch = containerHtml.match(/<span[^>]*class="[^"]*andes-money-amount__fraction[^"]*"[^>]*>([\s\S]*?)<\/span>/i)
-      if (priceMatch) {
-        const priceValue = cleanHtml(priceMatch[1])
-        console.log('Found current price:', priceValue, 'in main section:', isInMainSection, 'class:', containerClass)
+      // Find which is original (has "previous" nearby) and which is current
+      for (let i = 0; i < allPricesInSection.length; i++) {
+        const match = allPricesInSection[i]
+        const priceValue = cleanHtml(match[1])
         
-        // If this is in the main price section, use it
-        if (isInMainSection) {
-          price = '$ ' + priceValue
-          console.log('Using MAIN SECTION price:', price)
-          break
-        }
+        // Check context in the original HTML to determine if this is original or current price
+        const fullMatchStart = match.index!
+        const contextBefore = priceSection.substring(Math.max(0, fullMatchStart - 200), fullMatchStart)
         
-        // Otherwise save it as a candidate
-        if (!price && !isPrevious) {
-          price = '$ ' + priceValue
-          console.log('Using first valid price:', price)
+        const isOriginal = 
+          contextBefore.includes('previous') ||
+          contextBefore.includes('<s>') ||
+          contextBefore.includes('</s>')
+        
+        if (isOriginal) {
+          originalPrice = '$ ' + priceValue
+          console.log('Found ORIGINAL (tachado) price:', originalPrice)
+        } else {
+          // If we haven't found a current price yet, this is it
+          if (!currentPrice) {
+            currentPrice = '$ ' + priceValue
+            console.log('Found CURRENT (real de venta) price:', currentPrice)
+          }
         }
       }
     }
     
-    // Method 2: Fallback - Find the first andes-money-amount__fraction that's NOT in a struck-through context
-    if (!price) {
-      const allFractionMatches = [...html.matchAll(/<span[^>]*class="[^"]*andes-money-amount__fraction[^"]*"[^>]*>([\s\S]*?)<\/span>/gi)]
+    // Fallback 1: Look for andes-money-amount with specific class patterns
+    if (!currentPrice) {
+      // Pattern 1: Price with discount class (andes-money-amount--discount)
+      const discountPriceMatch = html.match(/<div[^>]*class="[^"]*andes-money-amount--discount[^"]*"[^>]*>[\s\S]*?<span[^>]*class="[^"]*andes-money-amount__fraction[^"]*"[^>]*>([\s\S]*?)<\/span>/i)
+      if (discountPriceMatch) {
+        currentPrice = '$ ' + cleanHtml(discountPriceMatch[1])
+        console.log('Found price from discount class:', currentPrice)
+      }
+    }
+    
+    // Fallback 2: Look for the first price NOT in "previous" container
+    if (!currentPrice) {
+      const allPriceContainers = [...html.matchAll(/<div[^>]*class="[^"]*andes-money-amount(?:\s|["'])[^(previous)]*"[^>]*>[\s\S]*?<span[^>]*class="[^"]*andes-money-amount__fraction[^"]*"[^>]*>([\s\S]*?)<\/span>/gi)]
       
-      for (const match of allFractionMatches) {
+      for (const match of allPriceContainers) {
+        const containerClass = match[0].match(/class="([^"]*)"/i)?.[1] || ''
         const priceValue = cleanHtml(match[1])
-        const contextBefore = html.substring(Math.max(0, match.index! - 400), match.index!)
-        const contextAfter = html.substring(match.index!, match.index! + 200)
+        const contextBefore = html.substring(Math.max(0, match.index! - 300), match.index!)
         
-        // Check if this price is struck-through
-        const isStruckThrough = 
-          contextBefore.includes('<s>') ||
-          contextBefore.includes('andes-money-amount--previous') ||
-          contextBefore.includes('previous') ||
-          contextAfter.includes('</s>')
-        
-        if (isStruckThrough) {
-          console.log('Fallback - skipping struck-through price:', priceValue)
+        // Skip if this is the previous/original price
+        if (containerClass.includes('previous') || contextBefore.includes('previous') || contextBefore.includes('<s>')) {
+          if (!originalPrice) {
+            originalPrice = '$ ' + priceValue
+            console.log('Found original price in fallback:', originalPrice)
+          }
           continue
         }
         
-        // Skip if in recommendations
-        const isInRecommendations = 
-          contextBefore.includes('recommendation') ||
-          contextBefore.includes('related') ||
-          contextBefore.includes('carousel') ||
-          contextBefore.includes('otros-vendedores')
-        
-        if (isInRecommendations) {
-          console.log('Fallback - skipping recommendation price:', priceValue)
+        // Skip if in recommendations section
+        if (contextBefore.includes('recommendation') || contextBefore.includes('related') || contextBefore.includes('carousel')) {
+          console.log('Skipping recommendation price:', priceValue)
           continue
         }
         
-        price = '$ ' + priceValue
-        console.log('Fallback - using price:', price)
+        currentPrice = '$ ' + priceValue
+        console.log('Found current price in fallback:', currentPrice)
         break
       }
     }
-
-    // Method 3: Try price-tag-fraction (older ML design)
-    if (!price) {
-      const priceTagMatch = html.match(/<span[^>]*class="[^"]*price-tag-fraction[^"]*"[^>]*>([\s\S]*?)<\/span>/i)
-      if (priceTagMatch) {
-        price = '$ ' + cleanHtml(priceTagMatch[1])
-        console.log('Found price from price-tag-fraction:', price)
-      }
-    }
-
-    // Method 4: Meta tag (last resort, may not always be accurate)
-    if (!price) {
+    
+    // Fallback 3: Use og:price:amount meta tag
+    if (!currentPrice) {
       const metaPriceMatch = html.match(/<meta[^>]*property="product:price:amount"[^>]*content="([^"]+)"/i)
       if (metaPriceMatch) {
         const priceNum = parseFloat(metaPriceMatch[1])
         if (priceNum > 0) {
-          price = formatPrice(priceNum)
-          console.log('Found price from meta tag:', price)
+          currentPrice = formatPrice(priceNum)
+          console.log('Found price from meta tag:', currentPrice)
         }
+      }
+    }
+    
+    // Fallback 4: Look for any price pattern
+    if (!currentPrice) {
+      const pricePatternMatch = html.match(/\$\s*[\d.,]+/g)
+      if (pricePatternMatch && pricePatternMatch.length > 0) {
+        currentPrice = pricePatternMatch[0].replace(/\s+/g, ' ').trim()
+        console.log('Found price from pattern:', currentPrice)
       }
     }
 
@@ -340,7 +313,7 @@ async function extractMercadoLibreInfo(url: string): Promise<{
       }
     }
 
-    // Another fallback: find any large image fromML static
+    // Another fallback: find any large image from ML static
     if (!imageUrl) {
       const mlImgMatch = html.match(/https?:\/\/http2\.mlstatic\.com\/[^\s"']+\.(?:jpg|jpeg|png|webp)/i)
       if (mlImgMatch) {
@@ -348,7 +321,12 @@ async function extractMercadoLibreInfo(url: string): Promise<{
       }
     }
 
-    console.log('Extracted:', { name: name?.substring(0, 50), price, imageUrl: imageUrl?.substring(0, 50) })
+    console.log('Extracted:', { 
+      name: name?.substring(0, 50), 
+      currentPrice, 
+      originalPrice,
+      imageUrl: imageUrl?.substring(0, 50) 
+    })
 
     if (!name || !imageUrl) {
       console.error('Could not extract required fields')
@@ -357,7 +335,8 @@ async function extractMercadoLibreInfo(url: string): Promise<{
 
     return {
       name,
-      price: price || 'Consultar precio',
+      price: currentPrice || 'Consultar precio',
+      originalPrice: originalPrice || undefined,
       imageUrl
     }
   } catch (error) {
