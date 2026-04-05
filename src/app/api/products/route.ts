@@ -175,73 +175,83 @@ async function extractMercadoLibreInfo(url: string): Promise<{
       }
     }
 
-    // Extract price - prioritize DISCOUNT/PROMOTIONAL price over list price
+    // Extract price - Use meta tag as PRIMARY source (most reliable)
+    // Mercado Libre's meta product:price:amount contains the current selling price
     let price = ''
 
-    // Method 1: Look for the main promotional price (green price, not strikethrough)
-    // This finds the price in the main price container that has a discount
-    // Pattern: find price that has a discount percentage nearby (like "20% OFF")
-    const discountContainerMatch = html.match(/andes-money-amount--discount[^>]*>[\s\S]*?<span[^>]*class="[^"]*andes-money-amount__fraction[^"]*"[^>]*>([\s\S]*?)<\/span>/i)
-    if (discountContainerMatch) {
-      price = '$ ' + cleanHtml(discountContainerMatch[1])
-      console.log('Found discount price:', price)
+    // Method 1: Meta tag product:price:amount - This is the DEFINITIVE price set by ML
+    const metaPriceMatch = html.match(/<meta[^>]*property="product:price:amount"[^>]*content="([^"]+)"/i)
+    if (metaPriceMatch) {
+      const priceNum = parseFloat(metaPriceMatch[1])
+      if (priceNum > 0) {
+        price = formatPrice(priceNum)
+        console.log('Found price from meta tag:', price, '(value:', priceNum, ')')
+      }
     }
 
-    // Method 2: Find price that's NOT inside a strikethrough (s) tag
-    // Look for the main price container without previous-price class
+    // Method 2: Try to get price from the main product price section (ui-pdp-price)
+    // This is the price section specific to the main product, not related products
     if (!price) {
-      // Find all price fractions and filter out the ones that are struck through (original price)
-      const allPriceMatches = html.matchAll(/<span[^>]*class="[^"]*andes-money-amount__fraction[^"]*"[^>]*>([\s\S]*?)<\/span>/gi)
-      const prices: string[] = []
-      for (const match of allPriceMatches) {
-        // Check if this price is inside a strikethrough or previous-price context
-        const beforeMatch = html.substring(Math.max(0, match.index! - 500), match.index)
-        const afterMatch = html.substring(match.index!, match.index! + 200)
-
-        // Skip if it's a struck-through price (original price)
-        const isStruckThrough = beforeMatch.includes('<s>') || beforeMatch.includes('</s>') ||
-                                beforeMatch.includes('price-tag-text-s') ||
-                                beforeMatch.includes('andes-money-amount--previous') ||
-                                beforeMatch.includes('previous-price') ||
-                                afterMatch.includes('</s>')
-
-        // This is likely the promotional price if there's a discount indicator nearby
-        const hasDiscountNearby = beforeMatch.includes('OFF') || afterMatch.includes('OFF') ||
-                                   beforeMatch.includes('discount') || afterMatch.includes('discount') ||
-                                   beforeMatch.includes('%') || afterMatch.includes('%')
-
-        if (!isStruckThrough) {
-          prices.push(cleanHtml(match[1]))
-          if (hasDiscountNearby) {
-            // Prioritize this price as it has discount indicator
-            price = '$ ' + cleanHtml(match[1])
-            console.log('Found price with discount nearby:', price)
-            break
-          }
+      // Find the main price container
+      const mainPriceSection = html.match(/<div[^>]*class="[^"]*ui-pdp-price[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<\/div>\s*<\/form>/i)
+      if (mainPriceSection) {
+        const priceSection = mainPriceSection[1]
+        // Extract price from this section
+        const priceInSection = priceSection.match(/<span[^>]*class="[^"]*andes-money-amount__fraction[^"]*"[^>]*>([\s\S]*?)<\/span>/i)
+        if (priceInSection) {
+          price = '$ ' + cleanHtml(priceInSection[1])
+          console.log('Found price from main section:', price)
         }
       }
+    }
 
-      // If no discount price found, use the first non-struck-through price
-      if (!price && prices.length > 0) {
-        price = '$ ' + prices[0]
-        console.log('Using first available price:', price)
+    // Method 3: Look for price in the main price block (not related products)
+    // The main product price is usually in a container with class containing "price" near the product form
+    if (!price) {
+      // Find all andes-money-amount containers and look for the one in the main product area
+      const allPriceContainers = html.matchAll(/<div[^>]*class="[^"]*andes-money-amount[^"]*"[^>]*>[\s\S]*?<span[^>]*class="[^"]*andes-money-amount__fraction[^"]*"[^>]*>([\s\S]*?)<\/span>/gi)
+      
+      for (const match of allPriceContainers) {
+        const contextBefore = html.substring(Math.max(0, match.index! - 1000), match.index!)
+        const contextAfter = html.substring(match.index!, match.index! + 500)
+        
+        // Check if this is in the MAIN product area (not in recommendations/related products)
+        const isInMainProduct = 
+          contextBefore.includes('ui-pdp-price') || 
+          contextBefore.includes('price-tag') ||
+          contextBefore.includes('ui-pdp-container') ||
+          contextAfter.includes('ui-pdp-action') ||
+          contextBefore.includes('short-description') ||
+          contextBefore.includes('product-actions')
+        
+        // Skip if it's in related products or recommendations
+        const isInRelated = 
+          contextBefore.includes('recommendation') ||
+          contextBefore.includes('related') ||
+          contextBefore.includes('carousel') ||
+          contextBefore.includes('also-viewed') ||
+          contextBefore.includes('advertising')
+        
+        // Skip if it's a struck-through price (original price)
+        const isStruckThrough = 
+          contextBefore.includes('<s>') || 
+          contextAfter.includes('</s>') ||
+          contextBefore.includes('andes-money-amount--previous')
+        
+        if (isInMainProduct && !isInRelated && !isStruckThrough) {
+          price = '$ ' + cleanHtml(match[1])
+          console.log('Found price from main product container:', price)
+          break
+        }
       }
     }
 
-    // Method 3: Try price-tag-fraction (older ML design)
+    // Method 4: Try price-tag-fraction (older ML design)
     if (!price) {
       const priceTagMatch = html.match(/<span[^>]*class="[^"]*price-tag-fraction[^"]*"[^>]*>([\s\S]*?)<\/span>/i)
       if (priceTagMatch) {
         price = '$ ' + cleanHtml(priceTagMatch[1])
-      }
-    }
-
-    // Method 4: Last resort - meta product:price:amount (often the list price)
-    if (!price) {
-      const metaPriceMatch = html.match(/<meta[^>]*property="product:price:amount"[^>]*content="([^"]+)"/i)
-      if (metaPriceMatch) {
-        const priceNum = parseFloat(metaPriceMatch[1])
-        price = formatPrice(priceNum)
+        console.log('Found price from price-tag-fraction:', price)
       }
     }
 
