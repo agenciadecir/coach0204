@@ -12,7 +12,10 @@ export async function GET(req: NextRequest) {
     
     const products = await db.product.findMany({
       where: isAdmin ? {} : { isActive: true },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
+      include: {
+        category: true
+      }
     })
 
     return NextResponse.json(products)
@@ -38,7 +41,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { productUrl, name, price, imageUrl, description } = body
+    const { productUrl, name, price, imageUrl, description, categoryId } = body
 
     // If productUrl is provided but not the other fields, extract from Mercado Libre
     if (productUrl && (!name || !price || !imageUrl)) {
@@ -58,7 +61,11 @@ export async function POST(req: NextRequest) {
           originalPrice: extractedData.originalPrice || null,
           imageUrl: extractedData.imageUrl,
           productUrl: productUrl,
-          description: description || null
+          description: description || null,
+          categoryId: categoryId || null
+        },
+        include: {
+          category: true
         }
       })
 
@@ -79,7 +86,11 @@ export async function POST(req: NextRequest) {
         price,
         imageUrl,
         productUrl,
-        description: description || null
+        description: description || null,
+        categoryId: categoryId || null
+      },
+      include: {
+        category: true
       }
     })
 
@@ -172,7 +183,7 @@ async function extractMercadoLibreInfo(url: string): Promise<{
     }
 
     // ========================================
-    // EXTRACT PRICES - Simplified approach
+    // EXTRACT PRICES
     // ========================================
     let currentPrice = ''  // Precio real de venta
     let originalPrice = '' // Precio de lista tachado
@@ -209,7 +220,6 @@ async function extractMercadoLibreInfo(url: string): Promise<{
 
     // Method 3: Find price in ui-pdp-price__second-line__content (current price container)
     if (!currentPrice) {
-      // This class usually contains the current/selling price
       const currentPriceMatch = html.match(/class="[^"]*ui-pdp-price__second-line__content[^"]*"[^>]*>[\s\S]*?<span[^>]*class="[^"]*andes-money-amount__fraction[^"]*"[^>]*>([\s\S]*?)<\/span>/i)
       if (currentPriceMatch) {
         currentPrice = '$ ' + cleanHtml(currentPriceMatch[1])

@@ -301,18 +301,31 @@ model Notification {
 }
 
 model Product {
-  id            String   @id @default(cuid())
+  id            String    @id @default(cuid())
   name          String
   price         String
   originalPrice String?
   imageUrl      String
   productUrl    String
   description   String?
-  isActive      Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  categoryId    String?
+  category      Category? @relation(fields: [categoryId], references: [id])
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   @@map("products")
+}
+
+model Category {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  description String?
+  products    Product[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("categories")
 }
 
 enum Role {

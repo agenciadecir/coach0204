@@ -20,7 +20,9 @@ import {
   Trash2,
   ExternalLink,
   Loader2,
-  ClipboardList
+  ClipboardList,
+  Tag,
+  FolderPlus
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/hooks/use-toast'
@@ -33,6 +35,13 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 
 interface Coach {
   id: string
@@ -57,6 +66,15 @@ interface Student {
   createdAt: string
 }
 
+interface Category {
+  id: string
+  name: string
+  description: string | null
+  _count?: {
+    products: number
+  }
+}
+
 interface Product {
   id: string
   name: string
@@ -67,6 +85,8 @@ interface Product {
   description: string | null
   isActive: boolean
   createdAt: string
+  categoryId: string | null
+  category: Category | null
 }
 
 type DatabaseSubTab = 'coaches' | 'students'
@@ -79,6 +99,7 @@ export function AdminDashboardView({ initialView = 'admin-dashboard' }: AdminDas
   const [coaches, setCoaches] = useState<Coach[]>([])
   const [students, setStudents] = useState<Student[]>([])
   const [products, setProducts] = useState<Product[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
   const [databaseSubTab, setDatabaseSubTab] = useState<DatabaseSubTab>('coaches')
   const [searchTerm, setSearchTerm] = useState('')
@@ -96,6 +117,9 @@ export function AdminDashboardView({ initialView = 'admin-dashboard' }: AdminDas
   const [addingProduct, setAddingProduct] = useState(false)
   const [manualMode, setManualMode] = useState(false)
   const [manualProduct, setManualProduct] = useState({ name: '', price: '', imageUrl: '' })
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>('')
+  const [newCategoryName, setNewCategoryName] = useState('')
+  const [addingCategory, setAddingCategory] = useState(false)
   
   const { toast } = useToast()
 
@@ -108,19 +132,22 @@ export function AdminDashboardView({ initialView = 'admin-dashboard' }: AdminDas
 
   const fetchData = async () => {
     try {
-      const [coachesRes, studentsRes, productsRes] = await Promise.all([
+      const [coachesRes, studentsRes, productsRes, categoriesRes] = await Promise.all([
         fetch('/api/admin/coaches'),
         fetch('/api/admin/students'),
-        fetch('/api/products')
+        fetch('/api/products'),
+        fetch('/api/categories')
       ])
       
       const coachesData = await coachesRes.json()
       const studentsData = await studentsRes.json()
       const productsData = await productsRes.json()
+      const categoriesData = await categoriesRes.json()
       
       setCoaches(Array.isArray(coachesData) ? coachesData : [])
       setStudents(Array.isArray(studentsData) ? studentsData : [])
       setProducts(Array.isArray(productsData) ? productsData : [])
+      setCategories(Array.isArray(categoriesData) ? categoriesData : [])
     } catch (error) {
       console.error('Error fetching admin data:', error)
     } finally {
@@ -234,7 +261,8 @@ export function AdminDashboardView({ initialView = 'admin-dashboard' }: AdminDas
             productUrl,
             name: manualProduct.name,
             price: manualProduct.price,
-            imageUrl: manualProduct.imageUrl
+            imageUrl: manualProduct.imageUrl,
+            categoryId: selectedCategoryId || undefined
           })
         })
 
@@ -265,7 +293,10 @@ export function AdminDashboardView({ initialView = 'admin-dashboard' }: AdminDas
       const res = await fetch('/api/products', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ productUrl })
+        body: JSON.stringify({ 
+          productUrl,
+          categoryId: selectedCategoryId || undefined
+        })
       })
 
       const data = await res.json()
@@ -328,6 +359,39 @@ export function AdminDashboardView({ initialView = 'admin-dashboard' }: AdminDas
       fetchData()
     } catch (error) {
       toast({ title: 'Error de conexión', variant: 'destructive' })
+    }
+  }
+
+  // Create new category
+  const handleCreateCategory = async () => {
+    if (!newCategoryName.trim()) {
+      toast({ title: 'Ingresa un nombre para la categoría', variant: 'destructive' })
+      return
+    }
+
+    setAddingCategory(true)
+    try {
+      const res = await fetch('/api/categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newCategoryName.trim() })
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        toast({ title: data.error || 'Error al crear categoría', variant: 'destructive' })
+        return
+      }
+
+      toast({ title: 'Categoría creada' })
+      setCategories([...categories, data])
+      setSelectedCategoryId(data.id)
+      setNewCategoryName('')
+    } catch (error) {
+      toast({ title: 'Error de conexión', variant: 'destructive' })
+    } finally {
+      setAddingCategory(false)
     }
   }
 
@@ -921,6 +985,8 @@ export function AdminDashboardView({ initialView = 'admin-dashboard' }: AdminDas
         if (!open) {
           setManualMode(false)
           setManualProduct({ name: '', price: '', imageUrl: '' })
+          setSelectedCategoryId('')
+          setNewCategoryName('')
         }
       }}>
         <DialogContent className="bg-slate-800 border-slate-700 max-w-md">
@@ -942,6 +1008,57 @@ export function AdminDashboardView({ initialView = 'admin-dashboard' }: AdminDas
                 className="bg-slate-700 border-slate-600 text-white"
                 placeholder="https://meli.la/... o https://mercadolibre.com.ar/..."
               />
+            </div>
+            
+            {/* Category Selection */}
+            <div className="space-y-2">
+              <Label className="text-slate-300 flex items-center gap-2">
+                <Tag className="w-4 h-4" />
+                Categoría (opcional)
+              </Label>
+              <div className="flex gap-2">
+                <Select value={selectedCategoryId} onValueChange={setSelectedCategoryId}>
+                  <SelectTrigger className="bg-slate-700 border-slate-600 text-white flex-1">
+                    <SelectValue placeholder="Seleccionar categoría" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-slate-700 border-slate-600">
+                    <SelectItem value="" className="text-white hover:bg-slate-600">
+                      Sin categoría
+                    </SelectItem>
+                    {categories.map((cat) => (
+                      <SelectItem key={cat.id} value={cat.id} className="text-white hover:bg-slate-600">
+                        {cat.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {/* New category input */}
+              <div className="flex gap-2 mt-2">
+                <Input
+                  value={newCategoryName}
+                  onChange={(e) => setNewCategoryName(e.target.value)}
+                  className="bg-slate-700 border-slate-600 text-white flex-1"
+                  placeholder="Nueva categoría..."
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && newCategoryName.trim()) {
+                      handleCreateCategory()
+                    }
+                  }}
+                />
+                <Button
+                  onClick={handleCreateCategory}
+                  disabled={addingCategory || !newCategoryName.trim()}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+                  size="icon"
+                >
+                  {addingCategory ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <FolderPlus className="w-4 h-4" />
+                  )}
+                </Button>
+              </div>
             </div>
             
             {manualMode && (
@@ -998,6 +1115,8 @@ export function AdminDashboardView({ initialView = 'admin-dashboard' }: AdminDas
                 setAddProductOpen(false)
                 setManualMode(false)
                 setManualProduct({ name: '', price: '', imageUrl: '' })
+                setSelectedCategoryId('')
+                setNewCategoryName('')
               }}
               className="bg-slate-600 hover:bg-slate-500 text-white font-semibold"
             >
