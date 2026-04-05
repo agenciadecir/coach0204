@@ -1,13 +1,11 @@
 'use client'
 
 import { useSession, signIn, signOut } from 'next-auth/react'
-import { useEffect, useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { 
   Dumbbell, 
@@ -19,7 +17,8 @@ import {
   Menu,
   X,
   Activity,
-  ChevronLeft
+  UserPlus,
+  Shield
 } from 'lucide-react'
 import { useAppStore } from '@/hooks/use-store'
 import { DashboardView } from '@/components/views/dashboard-view'
@@ -35,32 +34,39 @@ import { cn } from '@/lib/utils'
 
 export default function Home() {
   const { data: session, status } = useSession()
-  const [isFirstTime, setIsFirstTime] = useState<boolean | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
   const [loginForm, setLoginForm] = useState({ email: '', password: '' })
-  const [registerForm, setRegisterForm] = useState({ name: '', email: '', password: '', confirmPassword: '' })
-  const [authTab, setAuthTab] = useState<'login' | 'register'>('login')
+  const [registerForm, setRegisterForm] = useState({ email: '', password: '', name: '' })
   const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [isFirstUser, setIsFirstUser] = useState<boolean | null>(null)
+  const [showRegister, setShowRegister] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
   
   const { currentView, setCurrentView, selectedStudentId } = useAppStore()
 
+  // Check if this is the first user
   useEffect(() => {
-    fetch('/api/auth/check-first-time')
-      .then(res => res.json())
-      .then(data => {
-        setIsFirstTime(data.isFirstTime)
-        if (data.isFirstTime) {
-          setAuthTab('register')
+    const checkFirstUser = async () => {
+      try {
+        const res = await fetch('/api/auth/register')
+        const data = await res.json()
+        setIsFirstUser(data.isFirstUser)
+        if (data.isFirstUser) {
+          setShowRegister(true)
         }
-      })
-      .finally(() => setIsLoading(false))
+      } catch (err) {
+        console.error('Error checking first user:', err)
+        setIsFirstUser(false)
+      }
+    }
+    checkFirstUser()
   }, [])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+    setIsLoading(true)
     
     const result = await signIn('credentials', {
       email: loginForm.email,
@@ -68,6 +74,7 @@ export default function Home() {
       redirect: false
     })
 
+    setIsLoading(false)
     if (result?.error) {
       setError('Credenciales incorrectas')
     }
@@ -76,51 +83,49 @@ export default function Home() {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
-
-    if (registerForm.password !== registerForm.confirmPassword) {
-      setError('Las contraseñas no coinciden')
-      return
-    }
-
-    if (registerForm.password.length < 6) {
-      setError('La contraseña debe tener al menos 6 caracteres')
-      return
-    }
+    setSuccess('')
+    setIsLoading(true)
 
     try {
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: registerForm.name,
-          email: registerForm.email,
-          password: registerForm.password
-        })
+        body: JSON.stringify(registerForm)
       })
 
       const data = await res.json()
+      setIsLoading(false)
 
       if (!res.ok) {
         setError(data.error || 'Error al registrar')
         return
       }
 
-      await signIn('credentials', {
-        email: registerForm.email,
-        password: registerForm.password,
-        redirect: false
-      })
-    } catch {
-      setError('Error al registrar usuario')
+      setSuccess(data.message || 'Admin creado exitosamente')
+      setIsFirstUser(false)
+      setShowRegister(false)
+      setRegisterForm({ email: '', password: '', name: '' })
+      
+      // Auto-login after registration
+      setTimeout(() => {
+        signIn('credentials', {
+          email: registerForm.email,
+          password: registerForm.password,
+          redirect: false
+        })
+      }, 1000)
+    } catch (err) {
+      setIsLoading(false)
+      setError('Error al registrar')
     }
   }
 
-  if (isLoading) {
+  // Loading state while checking first user
+  if (status === 'loading' || isFirstUser === null) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
         <div className="relative">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-emerald-500"></div>
-          <div className="absolute inset-0 animate-ping rounded-full h-12 w-12 border border-emerald-500/30"></div>
         </div>
       </div>
     )
@@ -129,7 +134,6 @@ export default function Home() {
   if (status === 'unauthenticated' || !session) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4">
-        {/* Background effects */}
         <div className="absolute inset-0 overflow-hidden">
           <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl"></div>
           <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl"></div>
@@ -138,116 +142,125 @@ export default function Home() {
         <Card className="w-full max-w-md border-slate-700/50 bg-slate-800/50 backdrop-blur-xl relative z-10">
           <CardHeader className="text-center">
             <div className="mx-auto mb-4 w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-400 to-green-600 flex items-center justify-center shadow-lg shadow-emerald-500/30">
-              <Dumbbell className="w-8 h-8 text-white" />
+              {showRegister ? (
+                <Shield className="w-8 h-8 text-white" />
+              ) : (
+                <Dumbbell className="w-8 h-8 text-white" />
+              )}
             </div>
             <CardTitle className="text-2xl bg-gradient-to-r from-white to-slate-300 bg-clip-text text-transparent">
-              Fitness Coach Pro
+              {showRegister ? 'Configuración Inicial' : 'Fitness Coach Pro'}
             </CardTitle>
             <CardDescription className="text-slate-400">
-              {isFirstTime ? 'Crea tu cuenta de Coach' : 'Inicia sesión para continuar'}
+              {showRegister 
+                ? 'Crea tu cuenta de administrador' 
+                : 'Inicia sesión para continuar'}
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Tabs value={authTab} onValueChange={(v) => setAuthTab(v as 'login' | 'register')}>
-              {!isFirstTime && (
-                <TabsList className="grid w-full grid-cols-2 bg-slate-700/50 mb-4">
-                  <TabsTrigger value="login" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-emerald-500 data-[state=active]:to-green-600">Iniciar Sesión</TabsTrigger>
-                  <TabsTrigger value="register" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-emerald-500 data-[state=active]:to-green-600" disabled>
-                    Registrar
-                  </TabsTrigger>
-                </TabsList>
-              )}
-              
-              <TabsContent value="login" className="mt-0">
-                <form onSubmit={handleLogin} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="email" className="text-slate-300">Email</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      value={loginForm.email}
-                      onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })}
-                      className="bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-500 focus:border-emerald-500"
-                      placeholder="tu@email.com"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="password" className="text-slate-300">Contraseña</Label>
-                    <Input
-                      id="password"
-                      type="password"
-                      value={loginForm.password}
-                      onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
-                      className="bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-500 focus:border-emerald-500"
-                      placeholder="••••••••"
-                      required
-                    />
-                  </div>
-                  {error && <p className="text-red-400 text-sm bg-red-500/10 p-3 rounded-lg">{error}</p>}
-                  <Button type="submit" className="w-full bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 shadow-lg shadow-emerald-500/25">
-                    Iniciar Sesión
-                  </Button>
-                </form>
-              </TabsContent>
-              
-              <TabsContent value="register" className="mt-0">
-                <form onSubmit={handleRegister} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="reg-name" className="text-slate-300">Nombre</Label>
-                    <Input
-                      id="reg-name"
-                      type="text"
-                      value={registerForm.name}
-                      onChange={(e) => setRegisterForm({ ...registerForm, name: e.target.value })}
-                      className="bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-500 focus:border-emerald-500"
-                      placeholder="Tu nombre"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="reg-email" className="text-slate-300">Email</Label>
-                    <Input
-                      id="reg-email"
-                      type="email"
-                      value={registerForm.email}
-                      onChange={(e) => setRegisterForm({ ...registerForm, email: e.target.value })}
-                      className="bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-500 focus:border-emerald-500"
-                      placeholder="tu@email.com"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="reg-password" className="text-slate-300">Contraseña</Label>
-                    <Input
-                      id="reg-password"
-                      type="password"
-                      value={registerForm.password}
-                      onChange={(e) => setRegisterForm({ ...registerForm, password: e.target.value })}
-                      className="bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-500 focus:border-emerald-500"
-                      placeholder="Mínimo 6 caracteres"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="reg-confirm" className="text-slate-300">Confirmar Contraseña</Label>
-                    <Input
-                      id="reg-confirm"
-                      type="password"
-                      value={registerForm.confirmPassword}
-                      onChange={(e) => setRegisterForm({ ...registerForm, confirmPassword: e.target.value })}
-                      className="bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-500 focus:border-emerald-500"
-                      placeholder="••••••••"
-                      required
-                    />
-                  </div>
-                  {error && <p className="text-red-400 text-sm bg-red-500/10 p-3 rounded-lg">{error}</p>}
-                  <Button type="submit" className="w-full bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 shadow-lg shadow-emerald-500/25">
-                    Crear Cuenta de Coach
-                  </Button>
-                </form>
-              </TabsContent>
-            </Tabs>
+            {showRegister ? (
+              <form onSubmit={handleRegister} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="name" className="text-slate-300">Nombre</Label>
+                  <Input
+                    id="name"
+                    type="text"
+                    value={registerForm.name}
+                    onChange={(e) => setRegisterForm({ ...registerForm, name: e.target.value })}
+                    className="bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-500 focus:border-emerald-500"
+                    placeholder="Tu nombre"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="register-email" className="text-slate-300">Email</Label>
+                  <Input
+                    id="register-email"
+                    type="email"
+                    value={registerForm.email}
+                    onChange={(e) => setRegisterForm({ ...registerForm, email: e.target.value })}
+                    className="bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-500 focus:border-emerald-500"
+                    placeholder="tu@email.com"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="register-password" className="text-slate-300">Contraseña</Label>
+                  <Input
+                    id="register-password"
+                    type="password"
+                    value={registerForm.password}
+                    onChange={(e) => setRegisterForm({ ...registerForm, password: e.target.value })}
+                    className="bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-500 focus:border-emerald-500"
+                    placeholder="••••••••"
+                    required
+                    minLength={6}
+                  />
+                  <p className="text-xs text-slate-500">Mínimo 6 caracteres</p>
+                </div>
+                {error && <p className="text-red-400 text-sm bg-red-500/10 p-3 rounded-lg">{error}</p>}
+                {success && <p className="text-emerald-400 text-sm bg-emerald-500/10 p-3 rounded-lg">{success}</p>}
+                <Button 
+                  type="submit" 
+                  className="w-full bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 shadow-lg shadow-emerald-500/25"
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <div className="flex items-center gap-2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
+                      Creando...
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <UserPlus className="w-4 h-4" />
+                      Crear Admin
+                    </div>
+                  )}
+                </Button>
+              </form>
+            ) : (
+              <form onSubmit={handleLogin} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="email" className="text-slate-300">Email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={loginForm.email}
+                    onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })}
+                    className="bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-500 focus:border-emerald-500"
+                    placeholder="tu@email.com"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="password" className="text-slate-300">Contraseña</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    value={loginForm.password}
+                    onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
+                    className="bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-500 focus:border-emerald-500"
+                    placeholder="••••••••"
+                    required
+                  />
+                </div>
+                {error && <p className="text-red-400 text-sm bg-red-500/10 p-3 rounded-lg">{error}</p>}
+                <Button 
+                  type="submit" 
+                  className="w-full bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 shadow-lg shadow-emerald-500/25"
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <div className="flex items-center gap-2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
+                      Iniciando...
+                    </div>
+                  ) : (
+                    'Iniciar Sesión'
+                  )}
+                </Button>
+              </form>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -304,7 +317,6 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex">
-      {/* Mobile Sidebar Overlay */}
       {sidebarOpen && (
         <div 
           className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden"
@@ -312,7 +324,6 @@ export default function Home() {
         />
       )}
 
-      {/* Sidebar */}
       <aside className={cn(
         "fixed lg:sticky top-0 left-0 h-screen z-50",
         "bg-gradient-to-b from-slate-800 to-slate-900 border-r border-slate-700/50",
@@ -321,7 +332,6 @@ export default function Home() {
         sidebarOpen ? "translate-x-0 w-64" : "-translate-x-full w-64",
         !sidebarOpen && "lg:w-64 lg:translate-x-0"
       )}>
-        {/* Logo */}
         <div className="p-4 border-b border-slate-700/50 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-400 to-green-600 flex items-center justify-center shadow-lg shadow-emerald-500/30">
@@ -339,7 +349,6 @@ export default function Home() {
           </Button>
         </div>
 
-        {/* Navigation */}
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
           {navItems.map((item) => (
             <button
@@ -364,7 +373,6 @@ export default function Home() {
           ))}
         </nav>
 
-        {/* User Info */}
         <div className="p-4 border-t border-slate-700/50">
           <div className="flex items-center gap-3">
             <Avatar className="w-10 h-10 ring-2 ring-slate-600">
@@ -392,9 +400,7 @@ export default function Home() {
         </div>
       </aside>
 
-      {/* Main Content */}
       <main className="flex-1 min-h-screen overflow-auto">
-        {/* Mobile Header */}
         <div className="lg:hidden sticky top-0 z-30 bg-slate-900/95 backdrop-blur border-b border-slate-700/50 p-3">
           <div className="flex items-center justify-between">
             <Button
@@ -419,7 +425,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Content */}
         <div className="p-4 sm:p-6">
           {renderContent()}
         </div>
