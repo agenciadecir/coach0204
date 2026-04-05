@@ -132,17 +132,15 @@ export function AdminDashboardView({ initialView = 'admin-dashboard' }: AdminDas
 
   const fetchData = async () => {
     try {
-      const [coachesRes, studentsRes, productsRes, categoriesRes] = await Promise.all([
-        fetch('/api/admin/coaches'),
-        fetch('/api/admin/students'),
-        fetch('/api/products'),
-        fetch('/api/categories')
-      ])
+      // Fetch each resource independently to avoid one failure breaking everything
+      const fetchPromises = [
+        fetch('/api/admin/coaches').then(r => r.json()).catch(() => []),
+        fetch('/api/admin/students').then(r => r.json()).catch(() => []),
+        fetch('/api/products').then(r => r.json()).catch(() => []),
+        fetch('/api/categories').then(r => r.json()).catch(() => [])
+      ]
       
-      const coachesData = await coachesRes.json()
-      const studentsData = await studentsRes.json()
-      const productsData = await productsRes.json()
-      const categoriesData = await categoriesRes.json()
+      const [coachesData, studentsData, productsData, categoriesData] = await Promise.all(fetchPromises)
       
       setCoaches(Array.isArray(coachesData) ? coachesData : [])
       setStudents(Array.isArray(studentsData) ? studentsData : [])
@@ -1017,12 +1015,12 @@ export function AdminDashboardView({ initialView = 'admin-dashboard' }: AdminDas
                 Categoría (opcional)
               </Label>
               <div className="flex gap-2">
-                <Select value={selectedCategoryId} onValueChange={setSelectedCategoryId}>
+                <Select value={selectedCategoryId || "none"} onValueChange={(v) => setSelectedCategoryId(v === "none" ? "" : v)}>
                   <SelectTrigger className="bg-slate-700 border-slate-600 text-white flex-1">
                     <SelectValue placeholder="Seleccionar categoría" />
                   </SelectTrigger>
                   <SelectContent className="bg-slate-700 border-slate-600">
-                    <SelectItem value="" className="text-white hover:bg-slate-600">
+                    <SelectItem value="none" className="text-white hover:bg-slate-600">
                       Sin categoría
                     </SelectItem>
                     {categories.map((cat) => (
