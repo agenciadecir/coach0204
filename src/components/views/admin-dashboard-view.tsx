@@ -194,8 +194,16 @@ export function AdminDashboardView() {
       return
     }
 
-    if (!productUrl.includes('mercadolibre.com.ar') && !productUrl.includes('mercadolibre.com')) {
-      toast({ title: 'El enlace debe ser de Mercado Libre Argentina', variant: 'destructive' })
+    // Accept Mercado Libre URLs and affiliate short links (meli.la)
+    const isValidUrl = 
+      productUrl.includes('mercadolibre.com.ar') || 
+      productUrl.includes('mercadolibre.com') ||
+      productUrl.includes('mercadolibre.cl') ||
+      productUrl.includes('mercadolibre.com.mx') ||
+      productUrl.includes('meli.la')
+    
+    if (!isValidUrl) {
+      toast({ title: 'El enlace debe ser de Mercado Libre o un enlace de afiliado (meli.la)', variant: 'destructive' })
       return
     }
 
@@ -829,7 +837,7 @@ export function AdminDashboardView() {
           <DialogHeader>
             <DialogTitle className="text-white">Agregar Producto</DialogTitle>
             <DialogDescription className="text-slate-400">
-              Pega un enlace de Mercado Libre Argentina. Se extraerán automáticamente la imagen, nombre y precio.
+              Pega un enlace de Mercado Libre o de afiliado (meli.la). Se extraerán automáticamente la imagen, nombre y precio.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
