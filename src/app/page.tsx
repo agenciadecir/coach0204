@@ -19,7 +19,9 @@ import {
   Activity,
   UserPlus,
   Shield,
-  ShoppingCart
+  ShoppingCart,
+  Database,
+  LayoutDashboard
 } from 'lucide-react'
 import { useAppStore } from '@/hooks/use-store'
 import { DashboardView } from '@/components/views/dashboard-view'
@@ -273,7 +275,9 @@ export default function Home() {
   const isAdmin = session.user.role === 'ADMIN'
 
   const navItems = isAdmin ? [
-    { id: 'admin-dashboard', label: 'Dashboard', icon: Activity, gradient: 'from-purple-500 to-violet-600' },
+    { id: 'admin-dashboard', label: 'Dashboard', icon: LayoutDashboard, gradient: 'from-purple-500 to-violet-600' },
+    { id: 'admin-database', label: 'Base de Datos', icon: Database, gradient: 'from-blue-500 to-cyan-600' },
+    { id: 'admin-store', label: 'Tienda', icon: ShoppingCart, gradient: 'from-orange-500 to-amber-600' },
   ] : isCoach ? [
     { id: 'dashboard', label: 'Dashboard', icon: Activity, gradient: 'from-emerald-500 to-green-600' },
     { id: 'students', label: 'Alumnos', icon: Users, gradient: 'from-blue-500 to-indigo-600' },
@@ -294,8 +298,8 @@ export default function Home() {
       return <StudentDetailView studentId={selectedStudentId} />
     }
     
-    if (currentView === 'admin-dashboard' || isAdmin) {
-      return <AdminDashboardView />
+    if (isAdmin) {
+      return <AdminDashboardView initialView={currentView as 'admin-dashboard' | 'admin-database' | 'admin-store'} />
     }
     
     switch (currentView) {

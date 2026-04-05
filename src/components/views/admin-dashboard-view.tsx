@@ -20,8 +20,6 @@ import {
   Trash2,
   ExternalLink,
   Loader2,
-  Database,
-  LayoutDashboard,
   ClipboardList
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
@@ -70,15 +68,17 @@ interface Product {
   createdAt: string
 }
 
-type TabType = 'dashboard' | 'database' | 'store'
 type DatabaseSubTab = 'coaches' | 'students'
 
-export function AdminDashboardView() {
+interface AdminDashboardViewProps {
+  initialView?: 'admin-dashboard' | 'admin-database' | 'admin-store'
+}
+
+export function AdminDashboardView({ initialView = 'admin-dashboard' }: AdminDashboardViewProps) {
   const [coaches, setCoaches] = useState<Coach[]>([])
   const [students, setStudents] = useState<Student[]>([])
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<TabType>('dashboard')
   const [databaseSubTab, setDatabaseSubTab] = useState<DatabaseSubTab>('coaches')
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCoach, setSelectedCoach] = useState<Coach | null>(null)
@@ -97,6 +97,9 @@ export function AdminDashboardView() {
   const [manualProduct, setManualProduct] = useState({ name: '', price: '', imageUrl: '' })
   
   const { toast } = useToast()
+
+  // Determine active view based on initialView prop
+  const activeView = initialView
 
   useEffect(() => {
     fetchData()
@@ -386,9 +389,8 @@ export function AdminDashboardView() {
           <div className="flex gap-2 flex-wrap">
             {selectedCoach && (
               <Button
-                variant="outline"
                 onClick={handleBackToCoaches}
-                className="border-white/30 text-white hover:bg-white/10"
+                className="bg-slate-700 hover:bg-slate-600 text-white"
               >
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Volver
@@ -396,43 +398,6 @@ export function AdminDashboardView() {
             )}
           </div>
         </div>
-      </div>
-
-      {/* Main Navigation Tabs */}
-      <div className="flex gap-2 flex-wrap border-b border-slate-700 pb-4">
-        <Button
-          variant={activeTab === 'dashboard' ? 'default' : 'outline'}
-          onClick={() => setActiveTab('dashboard')}
-          className={activeTab === 'dashboard' 
-            ? 'bg-purple-600 hover:bg-purple-700 text-white' 
-            : 'border-white/30 text-white hover:bg-white/10 hover:text-white'
-          }
-        >
-          <LayoutDashboard className="w-4 h-4 mr-2" />
-          Dashboard
-        </Button>
-        <Button
-          variant={activeTab === 'database' ? 'default' : 'outline'}
-          onClick={() => setActiveTab('database')}
-          className={activeTab === 'database' 
-            ? 'bg-purple-600 hover:bg-purple-700 text-white' 
-            : 'border-white/30 text-white hover:bg-white/10 hover:text-white'
-          }
-        >
-          <Database className="w-4 h-4 mr-2" />
-          Base de Datos
-        </Button>
-        <Button
-          variant={activeTab === 'store' ? 'default' : 'outline'}
-          onClick={() => setActiveTab('store')}
-          className={activeTab === 'store' 
-            ? 'bg-orange-600 hover:bg-orange-700 text-white' 
-            : 'border-white/30 text-white hover:bg-white/10 hover:text-white'
-          }
-        >
-          <ShoppingCart className="w-4 h-4 mr-2" />
-          Tienda
-        </Button>
       </div>
 
       {/* Selected Coach View - Show their students */}
@@ -449,7 +414,7 @@ export function AdminDashboardView() {
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between flex-wrap gap-4">
                     <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-400 to-indigo-600 flex items-center justify-center text-white text-lg font-bold">
+                      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-400 to-cyan-600 flex items-center justify-center text-white text-lg font-bold">
                         {student.name?.charAt(0).toUpperCase() || 'A'}
                       </div>
                       <div>
@@ -477,8 +442,8 @@ export function AdminDashboardView() {
         </div>
       )}
 
-      {/* Dashboard Tab */}
-      {!selectedCoach && activeTab === 'dashboard' && (
+      {/* Dashboard View */}
+      {!selectedCoach && activeView === 'admin-dashboard' && (
         <div className="space-y-6">
           {/* Stats */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -551,25 +516,15 @@ export function AdminDashboardView() {
               <div className="flex flex-wrap gap-3">
                 <Button
                   onClick={() => setCreateCoachOpen(true)}
-                  className="bg-purple-600 hover:bg-purple-700 text-white"
+                  className="bg-purple-600 hover:bg-purple-700 text-white font-semibold"
                   size="lg"
                 >
                   <UserPlus className="w-5 h-5 mr-2" />
                   Crear Coach
                 </Button>
                 <Button
-                  variant="outline"
-                  onClick={() => setActiveTab('database')}
-                  className="border-white/30 text-white hover:bg-white/10"
-                  size="lg"
-                >
-                  <Users className="w-5 h-5 mr-2" />
-                  Ver Base de Datos
-                </Button>
-                <Button
-                  variant="outline"
                   onClick={exportToExcel}
-                  className="border-white/30 text-white hover:bg-white/10"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
                   size="lg"
                 >
                   <Download className="w-5 h-5 mr-2" />
@@ -657,28 +612,26 @@ export function AdminDashboardView() {
         </div>
       )}
 
-      {/* Database Tab */}
-      {!selectedCoach && activeTab === 'database' && (
+      {/* Database View */}
+      {!selectedCoach && activeView === 'admin-database' && (
         <div className="space-y-4">
           {/* Sub-tabs for Coaches/Students */}
           <div className="flex gap-2 flex-wrap">
             <Button
-              variant={databaseSubTab === 'coaches' ? 'default' : 'outline'}
               onClick={() => setDatabaseSubTab('coaches')}
               className={databaseSubTab === 'coaches' 
-                ? 'bg-purple-600 hover:bg-purple-700 text-white' 
-                : 'border-white/30 text-white hover:bg-white/10 hover:text-white'
+                ? 'bg-purple-600 hover:bg-purple-700 text-white font-semibold' 
+                : 'bg-slate-700 hover:bg-slate-600 text-white font-semibold'
               }
             >
               <Users className="w-4 h-4 mr-2" />
               Coaches ({coaches.length})
             </Button>
             <Button
-              variant={databaseSubTab === 'students' ? 'default' : 'outline'}
               onClick={() => setDatabaseSubTab('students')}
               className={databaseSubTab === 'students' 
-                ? 'bg-purple-600 hover:bg-purple-700 text-white' 
-                : 'border-white/30 text-white hover:bg-white/10 hover:text-white'
+                ? 'bg-purple-600 hover:bg-purple-700 text-white font-semibold' 
+                : 'bg-slate-700 hover:bg-slate-600 text-white font-semibold'
               }
             >
               <Users className="w-4 h-4 mr-2" />
@@ -686,9 +639,8 @@ export function AdminDashboardView() {
             </Button>
             <div className="flex-1" />
             <Button
-              variant="outline"
               onClick={exportToExcel}
-              className="border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/10"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
             >
               <Download className="w-4 h-4 mr-2" />
               Exportar
@@ -808,17 +760,19 @@ export function AdminDashboardView() {
         </div>
       )}
 
-      {/* Store Tab */}
-      {!selectedCoach && activeTab === 'store' && (
+      {/* Store View */}
+      {!selectedCoach && activeView === 'admin-store' && (
         <div className="space-y-4">
           {/* Add Product Button */}
-          <Button
-            onClick={() => setAddProductOpen(true)}
-            className="bg-orange-600 hover:bg-orange-700 text-white"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Agregar Producto
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              onClick={() => setAddProductOpen(true)}
+              className="bg-orange-600 hover:bg-orange-700 text-white font-semibold"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Agregar Producto
+            </Button>
+          </div>
 
           {/* Search */}
           <div className="relative">
@@ -865,27 +819,24 @@ export function AdminDashboardView() {
                     </p>
                     <div className="flex gap-2">
                       <Button
-                        variant="outline"
                         size="sm"
                         onClick={() => window.open(product.productUrl, '_blank')}
-                        className="flex-1 border-white/30 text-white hover:bg-white/10"
+                        className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold"
                       >
                         <ExternalLink className="w-4 h-4 mr-1" />
                         Ver
                       </Button>
                       <Button
-                        variant="outline"
                         size="sm"
                         onClick={() => handleToggleProduct(product)}
-                        className="border-white/30 text-white hover:bg-white/10"
+                        className="bg-slate-600 hover:bg-slate-500 text-white font-semibold"
                       >
                         {product.isActive ? 'Ocultar' : 'Mostrar'}
                       </Button>
                       <Button
-                        variant="outline"
                         size="sm"
                         onClick={() => handleDeleteProduct(product.id)}
-                        className="border-red-500/50 text-red-400 hover:bg-red-500/10"
+                        className="bg-red-600 hover:bg-red-700 text-white font-semibold"
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
@@ -940,16 +891,15 @@ export function AdminDashboardView() {
           </div>
           <DialogFooter>
             <Button
-              variant="outline"
               onClick={() => setCreateCoachOpen(false)}
-              className="border-white/30 text-white hover:bg-white/10"
+              className="bg-slate-600 hover:bg-slate-500 text-white font-semibold"
             >
               Cancelar
             </Button>
             <Button
               onClick={handleCreateCoach}
               disabled={creating}
-              className="bg-purple-600 hover:bg-purple-700 text-white"
+              className="bg-purple-600 hover:bg-purple-700 text-white font-semibold"
             >
               {creating ? 'Creando...' : 'Crear Coach'}
             </Button>
@@ -1036,20 +986,19 @@ export function AdminDashboardView() {
           </div>
           <DialogFooter>
             <Button
-              variant="outline"
               onClick={() => {
                 setAddProductOpen(false)
                 setManualMode(false)
                 setManualProduct({ name: '', price: '', imageUrl: '' })
               }}
-              className="border-white/30 text-white hover:bg-white/10"
+              className="bg-slate-600 hover:bg-slate-500 text-white font-semibold"
             >
               Cancelar
             </Button>
             <Button
               onClick={handleAddProduct}
               disabled={addingProduct}
-              className="bg-orange-600 hover:bg-orange-700 text-white"
+              className="bg-orange-600 hover:bg-orange-700 text-white font-semibold"
             >
               {addingProduct ? (
                 <div className="flex items-center gap-2">
