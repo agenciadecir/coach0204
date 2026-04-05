@@ -175,30 +175,73 @@ async function extractMercadoLibreInfo(url: string): Promise<{
       }
     }
 
-    // Extract price
+    // Extract price - prioritize DISCOUNT/PROMOTIONAL price over list price
     let price = ''
-    
-    // Try meta product:price:amount
-    const metaPriceMatch = html.match(/<meta[^>]*property="product:price:amount"[^>]*content="([^"]+)"/i)
-    if (metaPriceMatch) {
-      const priceNum = parseFloat(metaPriceMatch[1])
-      price = formatPrice(priceNum)
+
+    // Method 1: Look for the main promotional price (green price, not strikethrough)
+    // This finds the price in the main price container that has a discount
+    // Pattern: find price that has a discount percentage nearby (like "20% OFF")
+    const discountContainerMatch = html.match(/andes-money-amount--discount[^>]*>[\s\S]*?<span[^>]*class="[^"]*andes-money-amount__fraction[^"]*"[^>]*>([\s\S]*?)<\/span>/i)
+    if (discountContainerMatch) {
+      price = '$ ' + cleanHtml(discountContainerMatch[1])
+      console.log('Found discount price:', price)
     }
 
-    // Try to find price in spans
+    // Method 2: Find price that's NOT inside a strikethrough (s) tag
+    // Look for the main price container without previous-price class
     if (!price) {
-      // Try andes-money-amount__fraction
-      const priceFractionMatch = html.match(/<span[^>]*class="[^"]*andes-money-amount__fraction[^"]*"[^>]*>([\s\S]*?)<\/span>/i)
-      if (priceFractionMatch) {
-        price = '$ ' + cleanHtml(priceFractionMatch[1])
+      // Find all price fractions and filter out the ones that are struck through (original price)
+      const allPriceMatches = html.matchAll(/<span[^>]*class="[^"]*andes-money-amount__fraction[^"]*"[^>]*>([\s\S]*?)<\/span>/gi)
+      const prices: string[] = []
+      for (const match of allPriceMatches) {
+        // Check if this price is inside a strikethrough or previous-price context
+        const beforeMatch = html.substring(Math.max(0, match.index! - 500), match.index)
+        const afterMatch = html.substring(match.index!, match.index! + 200)
+
+        // Skip if it's a struck-through price (original price)
+        const isStruckThrough = beforeMatch.includes('<s>') || beforeMatch.includes('</s>') ||
+                                beforeMatch.includes('price-tag-text-s') ||
+                                beforeMatch.includes('andes-money-amount--previous') ||
+                                beforeMatch.includes('previous-price') ||
+                                afterMatch.includes('</s>')
+
+        // This is likely the promotional price if there's a discount indicator nearby
+        const hasDiscountNearby = beforeMatch.includes('OFF') || afterMatch.includes('OFF') ||
+                                   beforeMatch.includes('discount') || afterMatch.includes('discount') ||
+                                   beforeMatch.includes('%') || afterMatch.includes('%')
+
+        if (!isStruckThrough) {
+          prices.push(cleanHtml(match[1]))
+          if (hasDiscountNearby) {
+            // Prioritize this price as it has discount indicator
+            price = '$ ' + cleanHtml(match[1])
+            console.log('Found price with discount nearby:', price)
+            break
+          }
+        }
+      }
+
+      // If no discount price found, use the first non-struck-through price
+      if (!price && prices.length > 0) {
+        price = '$ ' + prices[0]
+        console.log('Using first available price:', price)
       }
     }
 
+    // Method 3: Try price-tag-fraction (older ML design)
     if (!price) {
-      // Try price-tag-fraction
       const priceTagMatch = html.match(/<span[^>]*class="[^"]*price-tag-fraction[^"]*"[^>]*>([\s\S]*?)<\/span>/i)
       if (priceTagMatch) {
         price = '$ ' + cleanHtml(priceTagMatch[1])
+      }
+    }
+
+    // Method 4: Last resort - meta product:price:amount (often the list price)
+    if (!price) {
+      const metaPriceMatch = html.match(/<meta[^>]*property="product:price:amount"[^>]*content="([^"]+)"/i)
+      if (metaPriceMatch) {
+        const priceNum = parseFloat(metaPriceMatch[1])
+        price = formatPrice(priceNum)
       }
     }
 
