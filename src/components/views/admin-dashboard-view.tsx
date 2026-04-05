@@ -15,7 +15,12 @@ import {
   ArrowLeft,
   Download,
   UserPlus,
-  ChevronRight
+  ChevronRight,
+  ShoppingCart,
+  Package,
+  Trash2,
+  ExternalLink,
+  Loader2
 } from 'lucide-react'
 import { useAppStore } from '@/hooks/use-store'
 import { Input } from '@/components/ui/input'
@@ -53,11 +58,23 @@ interface Student {
   createdAt: string
 }
 
+interface Product {
+  id: string
+  name: string
+  price: string
+  imageUrl: string
+  productUrl: string
+  description: string | null
+  isActive: boolean
+  createdAt: string
+}
+
 export function AdminDashboardView() {
   const [coaches, setCoaches] = useState<Coach[]>([])
   const [students, setStudents] = useState<Student[]>([])
+  const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'overview' | 'coaches' | 'students'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'coaches' | 'students' | 'store'>('overview')
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCoach, setSelectedCoach] = useState<Coach | null>(null)
   const [coachStudents, setCoachStudents] = useState<Student[]>([])
@@ -67,6 +84,11 @@ export function AdminDashboardView() {
   const [newCoach, setNewCoach] = useState({ name: '', email: '', password: '' })
   const [creating, setCreating] = useState(false)
   
+  // Add product dialog
+  const [addProductOpen, setAddProductOpen] = useState(false)
+  const [productUrl, setProductUrl] = useState('')
+  const [addingProduct, setAddingProduct] = useState(false)
+  
   const { toast } = useToast()
 
   useEffect(() => {
@@ -75,16 +97,19 @@ export function AdminDashboardView() {
 
   const fetchData = async () => {
     try {
-      const [coachesRes, studentsRes] = await Promise.all([
+      const [coachesRes, studentsRes, productsRes] = await Promise.all([
         fetch('/api/admin/coaches'),
-        fetch('/api/admin/students')
+        fetch('/api/admin/students'),
+        fetch('/api/products')
       ])
       
       const coachesData = await coachesRes.json()
       const studentsData = await studentsRes.json()
+      const productsData = await productsRes.json()
       
       setCoaches(Array.isArray(coachesData) ? coachesData : [])
       setStudents(Array.isArray(studentsData) ? studentsData : [])
+      setProducts(Array.isArray(productsData) ? productsData : [])
     } catch (error) {
       console.error('Error fetching admin data:', error)
     } finally {
@@ -113,6 +138,10 @@ export function AdminDashboardView() {
   const filteredCoaches = coaches.filter(c =>
     c.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     c.email.toLowerCase().includes(searchTerm.toLowerCase())
+  )
+
+  const filteredProducts = products.filter(p =>
+    p.name.toLowerCase().includes(searchTerm.toLowerCase())
   )
 
   const totalStudents = students.length
@@ -155,6 +184,86 @@ export function AdminDashboardView() {
       toast({ title: 'Error de conexión', variant: 'destructive' })
     } finally {
       setCreating(false)
+    }
+  }
+
+  // Add product from Mercado Libre
+  const handleAddProduct = async () => {
+    if (!productUrl) {
+      toast({ title: 'Ingresa un enlace de Mercado Libre', variant: 'destructive' })
+      return
+    }
+
+    if (!productUrl.includes('mercadolibre.com.ar') && !productUrl.includes('mercadolibre.com')) {
+      toast({ title: 'El enlace debe ser de Mercado Libre Argentina', variant: 'destructive' })
+      return
+    }
+
+    setAddingProduct(true)
+    try {
+      const res = await fetch('/api/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productUrl })
+      })
+
+      const data = await res.json()
+
+      if (!res.ok) {
+        toast({ title: data.error || 'Error al agregar producto', variant: 'destructive' })
+        return
+      }
+
+      toast({ title: 'Producto agregado exitosamente' })
+      setAddProductOpen(false)
+      setProductUrl('')
+      fetchData()
+    } catch (error) {
+      toast({ title: 'Error de conexión', variant: 'destructive' })
+    } finally {
+      setAddingProduct(false)
+    }
+  }
+
+  // Delete product
+  const handleDeleteProduct = async (productId: string) => {
+    if (!confirm('¿Estás seguro de eliminar este producto?')) return
+
+    try {
+      const res = await fetch(`/api/products/${productId}`, {
+        method: 'DELETE'
+      })
+
+      if (!res.ok) {
+        toast({ title: 'Error al eliminar producto', variant: 'destructive' })
+        return
+      }
+
+      toast({ title: 'Producto eliminado' })
+      fetchData()
+    } catch (error) {
+      toast({ title: 'Error de conexión', variant: 'destructive' })
+    }
+  }
+
+  // Toggle product visibility
+  const handleToggleProduct = async (product: Product) => {
+    try {
+      const res = await fetch(`/api/products/${product.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isActive: !product.isActive })
+      })
+
+      if (!res.ok) {
+        toast({ title: 'Error al actualizar producto', variant: 'destructive' })
+        return
+      }
+
+      toast({ title: product.isActive ? 'Producto ocultado' : 'Producto activado' })
+      fetchData()
+    } catch (error) {
+      toast({ title: 'Error de conexión', variant: 'destructive' })
     }
   }
 
@@ -211,10 +320,10 @@ export function AdminDashboardView() {
               {selectedCoach ? `Alumnos de ${selectedCoach.name || selectedCoach.email}` : 'Panel de Administrador'}
             </h1>
             <p className="text-slate-400 mt-1">
-              {selectedCoach ? `${coachStudents.length} alumnos asignados` : 'Gestión de coaches y alumnos'}
+              {selectedCoach ? `${coachStudents.length} alumnos asignados` : 'Gestión de coaches, alumnos y tienda'}
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             {selectedCoach && (
               <Button
                 variant="outline"
@@ -232,7 +341,7 @@ export function AdminDashboardView() {
               <UserPlus className="w-4 h-4 mr-2" />
               Crear Coach
             </Button>
-            {(students.length > 0 || coachStudents.length > 0) && (
+            {(students.length > 0 || coachStudents.length > 0) && !selectedCoach && (
               <Button
                 variant="outline"
                 onClick={exportToExcel}
@@ -294,11 +403,11 @@ export function AdminDashboardView() {
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-xl bg-gradient-to-br from-orange-500 to-amber-600 shadow-lg shadow-orange-500/30">
-                <TrendingUp className="w-5 h-5 text-white" />
+                <ShoppingCart className="w-5 h-5 text-white" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-white">{activeStudents}</p>
-                <p className="text-xs text-orange-200">Alumnos Activos</p>
+                <p className="text-2xl font-bold text-white">{products.filter(p => p.isActive).length}</p>
+                <p className="text-xs text-orange-200">Productos</p>
               </div>
             </div>
           </CardContent>
@@ -373,14 +482,22 @@ export function AdminDashboardView() {
             >
               Alumnos ({students.length})
             </Button>
+            <Button
+              variant={activeTab === 'store' ? 'default' : 'outline'}
+              onClick={() => setActiveTab('store')}
+              className={activeTab === 'store' ? 'bg-orange-600 hover:bg-orange-700' : 'border-slate-600 text-slate-300'}
+            >
+              <ShoppingCart className="w-4 h-4 mr-2" />
+              Tienda ({products.filter(p => p.isActive).length})
+            </Button>
           </div>
 
           {/* Search */}
-          {(activeTab === 'coaches' || activeTab === 'students') && (
+          {(activeTab === 'coaches' || activeTab === 'students' || activeTab === 'store') && (
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <Input
-                placeholder={activeTab === 'coaches' ? 'Buscar coaches...' : 'Buscar alumnos...'}
+                placeholder={activeTab === 'store' ? 'Buscar productos...' : activeTab === 'coaches' ? 'Buscar coaches...' : 'Buscar alumnos...'}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="bg-slate-800 border-slate-700 text-white pl-10"
@@ -565,6 +682,85 @@ export function AdminDashboardView() {
               )}
             </div>
           )}
+
+          {/* Store Tab */}
+          {activeTab === 'store' && (
+            <div className="space-y-4">
+              {/* Add Product Button */}
+              <Button
+                onClick={() => setAddProductOpen(true)}
+                className="bg-orange-600 hover:bg-orange-700"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Agregar Producto
+              </Button>
+
+              {filteredProducts.length === 0 ? (
+                <div className="text-center py-12 bg-slate-800/50 rounded-xl border border-slate-700">
+                  <Package className="w-12 h-12 mx-auto text-slate-500 mb-4" />
+                  <p className="text-slate-400">No hay productos en la tienda</p>
+                  <p className="text-slate-500 text-sm mt-2">Agrega productos de Mercado Libre</p>
+                </div>
+              ) : (
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {filteredProducts.map((product) => (
+                    <Card key={product.id} className={`bg-slate-800 border-slate-700 overflow-hidden ${!product.isActive ? 'opacity-60' : ''}`}>
+                      <div className="aspect-video relative overflow-hidden bg-slate-900/50">
+                        <img
+                          src={product.imageUrl}
+                          alt={product.name}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            e.currentTarget.src = 'https://via.placeholder.com/400x200?text=Imagen+no+disponible'
+                          }}
+                        />
+                        <div className="absolute top-2 right-2 flex gap-1">
+                          <Badge variant={product.isActive ? 'default' : 'secondary'} className={product.isActive ? 'bg-emerald-600' : ''}>
+                            {product.isActive ? 'Activo' : 'Oculto'}
+                          </Badge>
+                        </div>
+                      </div>
+                      <CardContent className="p-4">
+                        <h3 className="font-medium text-white line-clamp-2 mb-2 min-h-[48px]">
+                          {product.name}
+                        </h3>
+                        <p className="text-lg font-bold text-orange-400 mb-3">
+                          {product.price}
+                        </p>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => window.open(product.productUrl, '_blank')}
+                            className="flex-1 border-slate-600 text-slate-300"
+                          >
+                            <ExternalLink className="w-4 h-4 mr-1" />
+                            Ver
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleToggleProduct(product)}
+                            className="border-slate-600 text-slate-300"
+                          >
+                            {product.isActive ? 'Ocultar' : 'Mostrar'}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDeleteProduct(product.id)}
+                            className="border-red-600 text-red-400 hover:bg-red-600/10"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </>
       )}
 
@@ -622,6 +818,52 @@ export function AdminDashboardView() {
               className="bg-purple-600 hover:bg-purple-700"
             >
               {creating ? 'Creando...' : 'Crear Coach'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Product Dialog */}
+      <Dialog open={addProductOpen} onOpenChange={setAddProductOpen}>
+        <DialogContent className="bg-slate-800 border-slate-700">
+          <DialogHeader>
+            <DialogTitle className="text-white">Agregar Producto</DialogTitle>
+            <DialogDescription className="text-slate-400">
+              Pega un enlace de Mercado Libre Argentina. Se extraerán automáticamente la imagen, nombre y precio.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label className="text-slate-300">Enlace de Mercado Libre</Label>
+              <Input
+                value={productUrl}
+                onChange={(e) => setProductUrl(e.target.value)}
+                className="bg-slate-700 border-slate-600 text-white"
+                placeholder="https://www.mercadolibre.com.ar/..."
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setAddProductOpen(false)}
+              className="border-slate-600 text-slate-300"
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleAddProduct}
+              disabled={addingProduct}
+              className="bg-orange-600 hover:bg-orange-700"
+            >
+              {addingProduct ? (
+                <div className="flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Extrayendo...
+                </div>
+              ) : (
+                'Agregar Producto'
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

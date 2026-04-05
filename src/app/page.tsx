@@ -18,7 +18,8 @@ import {
   X,
   Activity,
   UserPlus,
-  Shield
+  Shield,
+  ShoppingCart
 } from 'lucide-react'
 import { useAppStore } from '@/hooks/use-store'
 import { DashboardView } from '@/components/views/dashboard-view'
@@ -30,6 +31,7 @@ import { ProgressView } from '@/components/views/progress-view'
 import { PaymentsView } from '@/components/views/payments-view'
 import { ExercisesView } from '@/components/views/exercises-view'
 import { AdminDashboardView } from '@/components/views/admin-dashboard-view'
+import { StoreView } from '@/components/views/store-view'
 import { cn } from '@/lib/utils'
 
 export default function Home() {
@@ -283,6 +285,7 @@ export default function Home() {
     { id: 'diets', label: 'Mi Dieta', icon: Utensils, gradient: 'from-orange-500 to-amber-600' },
     { id: 'progress', label: 'Mi Progreso', icon: TrendingUp, gradient: 'from-pink-500 to-rose-600' },
     { id: 'exercises', label: 'Ejercicios', icon: Dumbbell, gradient: 'from-cyan-500 to-teal-600' },
+    { id: 'store', label: 'Tienda', icon: ShoppingCart, gradient: 'from-orange-500 to-amber-600' },
     { id: 'payments', label: 'Mis Pagos', icon: CreditCard, gradient: 'from-violet-500 to-purple-600' },
   ]
 
@@ -310,6 +313,8 @@ export default function Home() {
         return <ProgressView />
       case 'payments':
         return <PaymentsView />
+      case 'store':
+        return <StoreView />
       default:
         return <DashboardView />
     }
