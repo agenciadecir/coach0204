@@ -9,7 +9,6 @@ import {
   UserCheck, 
   Mail, 
   Phone, 
-  TrendingUp,
   Plus,
   Search,
   ArrowLeft,
@@ -20,9 +19,11 @@ import {
   Package,
   Trash2,
   ExternalLink,
-  Loader2
+  Loader2,
+  Database,
+  LayoutDashboard,
+  ClipboardList
 } from 'lucide-react'
-import { useAppStore } from '@/hooks/use-store'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/hooks/use-toast'
 import {
@@ -69,12 +70,16 @@ interface Product {
   createdAt: string
 }
 
+type TabType = 'dashboard' | 'database' | 'store'
+type DatabaseSubTab = 'coaches' | 'students'
+
 export function AdminDashboardView() {
   const [coaches, setCoaches] = useState<Coach[]>([])
   const [students, setStudents] = useState<Student[]>([])
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'overview' | 'coaches' | 'students' | 'store'>('overview')
+  const [activeTab, setActiveTab] = useState<TabType>('dashboard')
+  const [databaseSubTab, setDatabaseSubTab] = useState<DatabaseSubTab>('coaches')
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCoach, setSelectedCoach] = useState<Coach | null>(null)
   const [coachStudents, setCoachStudents] = useState<Student[]>([])
@@ -383,90 +388,51 @@ export function AdminDashboardView() {
               <Button
                 variant="outline"
                 onClick={handleBackToCoaches}
-                className="border-slate-600 text-slate-300"
+                className="border-white/30 text-white hover:bg-white/10"
               >
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Volver
-              </Button>
-            )}
-            <Button
-              onClick={() => setCreateCoachOpen(true)}
-              className="bg-purple-600 hover:bg-purple-700"
-            >
-              <UserPlus className="w-4 h-4 mr-2" />
-              Crear Coach
-            </Button>
-            {(students.length > 0 || coachStudents.length > 0) && !selectedCoach && (
-              <Button
-                variant="outline"
-                onClick={exportToExcel}
-                className="border-slate-600 text-slate-300"
-              >
-                <Download className="w-4 h-4 mr-2" />
-                Exportar
               </Button>
             )}
           </div>
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <Card className="bg-gradient-to-br from-purple-500/20 to-violet-600/10 border-purple-500/30">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-xl bg-gradient-to-br from-purple-500 to-violet-600 shadow-lg shadow-purple-500/30">
-                <Users className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-white">{totalCoaches}</p>
-                <p className="text-xs text-purple-200">Coaches</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card className="bg-gradient-to-br from-emerald-500/20 to-green-600/10 border-emerald-500/30">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 shadow-lg shadow-emerald-500/30">
-                <UserCheck className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-white">{activeCoaches}</p>
-                <p className="text-xs text-emerald-200">Coaches Activos</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card className="bg-gradient-to-br from-blue-500/20 to-indigo-600/10 border-blue-500/30">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-lg shadow-blue-500/30">
-                <Users className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-white">{totalStudents}</p>
-                <p className="text-xs text-blue-200">Alumnos</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card className="bg-gradient-to-br from-orange-500/20 to-amber-600/10 border-orange-500/30">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-xl bg-gradient-to-br from-orange-500 to-amber-600 shadow-lg shadow-orange-500/30">
-                <ShoppingCart className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-white">{products.filter(p => p.isActive).length}</p>
-                <p className="text-xs text-orange-200">Productos</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      {/* Main Navigation Tabs */}
+      <div className="flex gap-2 flex-wrap border-b border-slate-700 pb-4">
+        <Button
+          variant={activeTab === 'dashboard' ? 'default' : 'outline'}
+          onClick={() => setActiveTab('dashboard')}
+          className={activeTab === 'dashboard' 
+            ? 'bg-purple-600 hover:bg-purple-700 text-white' 
+            : 'border-white/30 text-white hover:bg-white/10 hover:text-white'
+          }
+        >
+          <LayoutDashboard className="w-4 h-4 mr-2" />
+          Dashboard
+        </Button>
+        <Button
+          variant={activeTab === 'database' ? 'default' : 'outline'}
+          onClick={() => setActiveTab('database')}
+          className={activeTab === 'database' 
+            ? 'bg-purple-600 hover:bg-purple-700 text-white' 
+            : 'border-white/30 text-white hover:bg-white/10 hover:text-white'
+          }
+        >
+          <Database className="w-4 h-4 mr-2" />
+          Base de Datos
+        </Button>
+        <Button
+          variant={activeTab === 'store' ? 'default' : 'outline'}
+          onClick={() => setActiveTab('store')}
+          className={activeTab === 'store' 
+            ? 'bg-orange-600 hover:bg-orange-700 text-white' 
+            : 'border-white/30 text-white hover:bg-white/10 hover:text-white'
+          }
+        >
+          <ShoppingCart className="w-4 h-4 mr-2" />
+          Tienda
+        </Button>
       </div>
 
       {/* Selected Coach View - Show their students */}
@@ -511,135 +477,237 @@ export function AdminDashboardView() {
         </div>
       )}
 
-      {/* Main View - Show tabs and lists */}
-      {!selectedCoach && (
-        <>
-          {/* Tabs */}
+      {/* Dashboard Tab */}
+      {!selectedCoach && activeTab === 'dashboard' && (
+        <div className="space-y-6">
+          {/* Stats */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <Card className="bg-gradient-to-br from-purple-500/20 to-violet-600/10 border-purple-500/30">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-xl bg-gradient-to-br from-purple-500 to-violet-600 shadow-lg shadow-purple-500/30">
+                    <Users className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-white">{totalCoaches}</p>
+                    <p className="text-xs text-purple-200">Coaches</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            
+            <Card className="bg-gradient-to-br from-emerald-500/20 to-green-600/10 border-emerald-500/30">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 shadow-lg shadow-emerald-500/30">
+                    <UserCheck className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-white">{activeCoaches}</p>
+                    <p className="text-xs text-emerald-200">Coaches Activos</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            
+            <Card className="bg-gradient-to-br from-blue-500/20 to-cyan-600/10 border-blue-500/30">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-600 shadow-lg shadow-blue-500/30">
+                    <Users className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-white">{totalStudents}</p>
+                    <p className="text-xs text-blue-200">Alumnos</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            
+            <Card className="bg-gradient-to-br from-orange-500/20 to-amber-600/10 border-orange-500/30">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-xl bg-gradient-to-br from-orange-500 to-amber-600 shadow-lg shadow-orange-500/30">
+                    <ShoppingCart className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-white">{products.filter(p => p.isActive).length}</p>
+                    <p className="text-xs text-orange-200">Productos</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Quick Actions */}
+          <Card className="bg-slate-800 border-slate-700">
+            <CardHeader>
+              <CardTitle className="text-white flex items-center gap-2">
+                <ClipboardList className="w-5 h-5 text-purple-400" />
+                Acciones Rápidas
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-3">
+                <Button
+                  onClick={() => setCreateCoachOpen(true)}
+                  className="bg-purple-600 hover:bg-purple-700 text-white"
+                  size="lg"
+                >
+                  <UserPlus className="w-5 h-5 mr-2" />
+                  Crear Coach
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setActiveTab('database')}
+                  className="border-white/30 text-white hover:bg-white/10"
+                  size="lg"
+                >
+                  <Users className="w-5 h-5 mr-2" />
+                  Ver Base de Datos
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={exportToExcel}
+                  className="border-white/30 text-white hover:bg-white/10"
+                  size="lg"
+                >
+                  <Download className="w-5 h-5 mr-2" />
+                  Exportar Alumnos
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Recent Activity */}
+          <div className="grid gap-6 md:grid-cols-2">
+            {/* Recent Coaches */}
+            <Card className="bg-slate-800 border-slate-700">
+              <CardHeader>
+                <CardTitle className="text-white flex items-center gap-2">
+                  <Users className="w-5 h-5 text-purple-400" />
+                  Coaches Recientes
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {coaches.slice(0, 5).map((coach) => (
+                  <button
+                    key={coach.id}
+                    onClick={() => handleCoachClick(coach)}
+                    className="w-full flex items-center justify-between p-3 bg-slate-700/50 rounded-lg hover:bg-slate-700 transition-colors text-left"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-400 to-violet-600 flex items-center justify-center text-white font-bold">
+                        {coach.name?.charAt(0).toUpperCase() || 'C'}
+                      </div>
+                      <div>
+                        <p className="text-white font-medium">{coach.name || 'Sin nombre'}</p>
+                        <p className="text-slate-400 text-sm flex items-center gap-1">
+                          <Mail className="w-3 h-3" />
+                          {coach.email}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-slate-400">{coach._count.students} alumnos</span>
+                      <ChevronRight className="w-4 h-4 text-slate-400" />
+                    </div>
+                  </button>
+                ))}
+              </CardContent>
+            </Card>
+
+            {/* Recent Students */}
+            <Card className="bg-slate-800 border-slate-700">
+              <CardHeader>
+                <CardTitle className="text-white flex items-center gap-2">
+                  <Users className="w-5 h-5 text-blue-400" />
+                  Alumnos Recientes
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {students.slice(0, 5).map((student) => (
+                  <div key={student.id} className="flex items-center justify-between p-3 bg-slate-700/50 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-cyan-600 flex items-center justify-center text-white font-bold">
+                        {student.name?.charAt(0).toUpperCase() || 'A'}
+                      </div>
+                      <div>
+                        <p className="text-white font-medium">{student.name || 'Sin nombre'}</p>
+                        <p className="text-slate-400 text-sm flex items-center gap-1">
+                          <Mail className="w-3 h-3" />
+                          {student.email}
+                        </p>
+                        {student.phone && (
+                          <p className="text-slate-400 text-sm flex items-center gap-1">
+                            <Phone className="w-3 h-3" />
+                            {student.phone}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <Badge variant={student.isActive ? 'default' : 'secondary'} className={student.isActive ? 'bg-emerald-600' : ''}>
+                      {student.isActive ? 'Activo' : 'Inactivo'}
+                    </Badge>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      )}
+
+      {/* Database Tab */}
+      {!selectedCoach && activeTab === 'database' && (
+        <div className="space-y-4">
+          {/* Sub-tabs for Coaches/Students */}
           <div className="flex gap-2 flex-wrap">
             <Button
-              variant={activeTab === 'overview' ? 'default' : 'outline'}
-              onClick={() => setActiveTab('overview')}
-              className={activeTab === 'overview' ? 'bg-purple-600 hover:bg-purple-700' : 'border-slate-600 text-slate-300'}
+              variant={databaseSubTab === 'coaches' ? 'default' : 'outline'}
+              onClick={() => setDatabaseSubTab('coaches')}
+              className={databaseSubTab === 'coaches' 
+                ? 'bg-purple-600 hover:bg-purple-700 text-white' 
+                : 'border-white/30 text-white hover:bg-white/10 hover:text-white'
+              }
             >
-              Resumen
-            </Button>
-            <Button
-              variant={activeTab === 'coaches' ? 'default' : 'outline'}
-              onClick={() => setActiveTab('coaches')}
-              className={activeTab === 'coaches' ? 'bg-purple-600 hover:bg-purple-700' : 'border-slate-600 text-slate-300'}
-            >
+              <Users className="w-4 h-4 mr-2" />
               Coaches ({coaches.length})
             </Button>
             <Button
-              variant={activeTab === 'students' ? 'default' : 'outline'}
-              onClick={() => setActiveTab('students')}
-              className={activeTab === 'students' ? 'bg-purple-600 hover:bg-purple-700' : 'border-slate-600 text-slate-300'}
+              variant={databaseSubTab === 'students' ? 'default' : 'outline'}
+              onClick={() => setDatabaseSubTab('students')}
+              className={databaseSubTab === 'students' 
+                ? 'bg-purple-600 hover:bg-purple-700 text-white' 
+                : 'border-white/30 text-white hover:bg-white/10 hover:text-white'
+              }
             >
+              <Users className="w-4 h-4 mr-2" />
               Alumnos ({students.length})
             </Button>
+            <div className="flex-1" />
             <Button
-              variant={activeTab === 'store' ? 'default' : 'outline'}
-              onClick={() => setActiveTab('store')}
-              className={activeTab === 'store' ? 'bg-orange-600 hover:bg-orange-700' : 'border-slate-600 text-slate-300'}
+              variant="outline"
+              onClick={exportToExcel}
+              className="border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/10"
             >
-              <ShoppingCart className="w-4 h-4 mr-2" />
-              Tienda ({products.filter(p => p.isActive).length})
+              <Download className="w-4 h-4 mr-2" />
+              Exportar
             </Button>
           </div>
 
           {/* Search */}
-          {(activeTab === 'coaches' || activeTab === 'students' || activeTab === 'store') && (
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <Input
-                placeholder={activeTab === 'store' ? 'Buscar productos...' : activeTab === 'coaches' ? 'Buscar coaches...' : 'Buscar alumnos...'}
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="bg-slate-800 border-slate-700 text-white pl-10"
-              />
-            </div>
-          )}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <Input
+              placeholder={databaseSubTab === 'coaches' ? 'Buscar coaches...' : 'Buscar alumnos...'}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="bg-slate-800 border-slate-700 text-white pl-10"
+            />
+          </div>
 
-          {/* Overview Tab */}
-          {activeTab === 'overview' && (
-            <div className="grid gap-6 md:grid-cols-2">
-              {/* Recent Coaches */}
-              <Card className="bg-slate-800 border-slate-700">
-                <CardHeader>
-                  <CardTitle className="text-white flex items-center gap-2">
-                    <Users className="w-5 h-5 text-purple-400" />
-                    Coaches
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {coaches.slice(0, 5).map((coach) => (
-                    <button
-                      key={coach.id}
-                      onClick={() => handleCoachClick(coach)}
-                      className="w-full flex items-center justify-between p-3 bg-slate-700/50 rounded-lg hover:bg-slate-700 transition-colors text-left"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-400 to-violet-600 flex items-center justify-center text-white font-bold">
-                          {coach.name?.charAt(0).toUpperCase() || 'C'}
-                        </div>
-                        <div>
-                          <p className="text-white font-medium">{coach.name || 'Sin nombre'}</p>
-                          <p className="text-slate-400 text-sm flex items-center gap-1">
-                            <Mail className="w-3 h-3" />
-                            {coach.email}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-slate-400">{coach._count.students} alumnos</span>
-                        <ChevronRight className="w-4 h-4 text-slate-400" />
-                      </div>
-                    </button>
-                  ))}
-                </CardContent>
-              </Card>
-
-              {/* Recent Students */}
-              <Card className="bg-slate-800 border-slate-700">
-                <CardHeader>
-                  <CardTitle className="text-white flex items-center gap-2">
-                    <Users className="w-5 h-5 text-blue-400" />
-                    Alumnos Recientes
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {students.slice(0, 5).map((student) => (
-                    <div key={student.id} className="flex items-center justify-between p-3 bg-slate-700/50 rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-indigo-600 flex items-center justify-center text-white font-bold">
-                          {student.name?.charAt(0).toUpperCase() || 'A'}
-                        </div>
-                        <div>
-                          <p className="text-white font-medium">{student.name || 'Sin nombre'}</p>
-                          <p className="text-slate-400 text-sm flex items-center gap-1">
-                            <Mail className="w-3 h-3" />
-                            {student.email}
-                          </p>
-                          {student.phone && (
-                            <p className="text-slate-400 text-sm flex items-center gap-1">
-                              <Phone className="w-3 h-3" />
-                              {student.phone}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                      <Badge variant={student.isActive ? 'default' : 'secondary'} className={student.isActive ? 'bg-emerald-600' : ''}>
-                        {student.isActive ? 'Activo' : 'Inactivo'}
-                      </Badge>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-            </div>
-          )}
-
-          {/* Coaches Tab */}
-          {activeTab === 'coaches' && (
+          {/* Coaches List */}
+          {databaseSubTab === 'coaches' && (
             <div className="space-y-3">
               {filteredCoaches.length === 0 ? (
                 <div className="text-center py-12 bg-slate-800/50 rounded-xl border border-slate-700">
@@ -687,8 +755,8 @@ export function AdminDashboardView() {
             </div>
           )}
 
-          {/* Students Tab */}
-          {activeTab === 'students' && (
+          {/* Students List */}
+          {databaseSubTab === 'students' && (
             <div className="space-y-3">
               {filteredStudents.length === 0 ? (
                 <div className="text-center py-12 bg-slate-800/50 rounded-xl border border-slate-700">
@@ -701,7 +769,7 @@ export function AdminDashboardView() {
                     <CardContent className="p-4">
                       <div className="flex items-center justify-between flex-wrap gap-4">
                         <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-400 to-indigo-600 flex items-center justify-center text-white text-lg font-bold">
+                          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-400 to-cyan-600 flex items-center justify-center text-white text-lg font-bold">
                             {student.name?.charAt(0).toUpperCase() || 'A'}
                           </div>
                           <div>
@@ -737,86 +805,97 @@ export function AdminDashboardView() {
               )}
             </div>
           )}
+        </div>
+      )}
 
-          {/* Store Tab */}
-          {activeTab === 'store' && (
-            <div className="space-y-4">
-              {/* Add Product Button */}
-              <Button
-                onClick={() => setAddProductOpen(true)}
-                className="bg-orange-600 hover:bg-orange-700"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Agregar Producto
-              </Button>
+      {/* Store Tab */}
+      {!selectedCoach && activeTab === 'store' && (
+        <div className="space-y-4">
+          {/* Add Product Button */}
+          <Button
+            onClick={() => setAddProductOpen(true)}
+            className="bg-orange-600 hover:bg-orange-700 text-white"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Agregar Producto
+          </Button>
 
-              {filteredProducts.length === 0 ? (
-                <div className="text-center py-12 bg-slate-800/50 rounded-xl border border-slate-700">
-                  <Package className="w-12 h-12 mx-auto text-slate-500 mb-4" />
-                  <p className="text-slate-400">No hay productos en la tienda</p>
-                  <p className="text-slate-500 text-sm mt-2">Agrega productos de Mercado Libre</p>
-                </div>
-              ) : (
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {filteredProducts.map((product) => (
-                    <Card key={product.id} className={`bg-slate-800 border-slate-700 overflow-hidden ${!product.isActive ? 'opacity-60' : ''}`}>
-                      <div className="aspect-video relative overflow-hidden bg-slate-900/50">
-                        <img
-                          src={product.imageUrl}
-                          alt={product.name}
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            e.currentTarget.src = 'https://via.placeholder.com/400x200?text=Imagen+no+disponible'
-                          }}
-                        />
-                        <div className="absolute top-2 right-2 flex gap-1">
-                          <Badge variant={product.isActive ? 'default' : 'secondary'} className={product.isActive ? 'bg-emerald-600' : ''}>
-                            {product.isActive ? 'Activo' : 'Oculto'}
-                          </Badge>
-                        </div>
-                      </div>
-                      <CardContent className="p-4">
-                        <h3 className="font-medium text-white line-clamp-2 mb-2 min-h-[48px]">
-                          {product.name}
-                        </h3>
-                        <p className="text-lg font-bold text-orange-400 mb-3">
-                          {product.price}
-                        </p>
-                        <div className="flex gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => window.open(product.productUrl, '_blank')}
-                            className="flex-1 border-slate-600 text-slate-300"
-                          >
-                            <ExternalLink className="w-4 h-4 mr-1" />
-                            Ver
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleToggleProduct(product)}
-                            className="border-slate-600 text-slate-300"
-                          >
-                            {product.isActive ? 'Ocultar' : 'Mostrar'}
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleDeleteProduct(product.id)}
-                            className="border-red-600 text-red-400 hover:bg-red-600/10"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              )}
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <Input
+              placeholder="Buscar productos..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="bg-slate-800 border-slate-700 text-white pl-10"
+            />
+          </div>
+
+          {filteredProducts.length === 0 ? (
+            <div className="text-center py-12 bg-slate-800/50 rounded-xl border border-slate-700">
+              <Package className="w-12 h-12 mx-auto text-slate-500 mb-4" />
+              <p className="text-slate-400">No hay productos en la tienda</p>
+              <p className="text-slate-500 text-sm mt-2">Agrega productos de Mercado Libre</p>
+            </div>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {filteredProducts.map((product) => (
+                <Card key={product.id} className={`bg-slate-800 border-slate-700 overflow-hidden ${!product.isActive ? 'opacity-60' : ''}`}>
+                  <div className="aspect-video relative overflow-hidden bg-slate-900/50">
+                    <img
+                      src={product.imageUrl}
+                      alt={product.name}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.currentTarget.src = 'https://via.placeholder.com/400x200?text=Imagen+no+disponible'
+                      }}
+                    />
+                    <div className="absolute top-2 right-2 flex gap-1">
+                      <Badge variant={product.isActive ? 'default' : 'secondary'} className={product.isActive ? 'bg-emerald-600' : ''}>
+                        {product.isActive ? 'Activo' : 'Oculto'}
+                      </Badge>
+                    </div>
+                  </div>
+                  <CardContent className="p-4">
+                    <h3 className="font-medium text-white line-clamp-2 mb-2 min-h-[48px]">
+                      {product.name}
+                    </h3>
+                    <p className="text-lg font-bold text-orange-400 mb-3">
+                      {product.price}
+                    </p>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => window.open(product.productUrl, '_blank')}
+                        className="flex-1 border-white/30 text-white hover:bg-white/10"
+                      >
+                        <ExternalLink className="w-4 h-4 mr-1" />
+                        Ver
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleToggleProduct(product)}
+                        className="border-white/30 text-white hover:bg-white/10"
+                      >
+                        {product.isActive ? 'Ocultar' : 'Mostrar'}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDeleteProduct(product.id)}
+                        className="border-red-500/50 text-red-400 hover:bg-red-500/10"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
             </div>
           )}
-        </>
+        </div>
       )}
 
       {/* Create Coach Dialog */}
@@ -863,14 +942,14 @@ export function AdminDashboardView() {
             <Button
               variant="outline"
               onClick={() => setCreateCoachOpen(false)}
-              className="border-slate-600 text-slate-300"
+              className="border-white/30 text-white hover:bg-white/10"
             >
               Cancelar
             </Button>
             <Button
               onClick={handleCreateCoach}
               disabled={creating}
-              className="bg-purple-600 hover:bg-purple-700"
+              className="bg-purple-600 hover:bg-purple-700 text-white"
             >
               {creating ? 'Creando...' : 'Crear Coach'}
             </Button>
@@ -963,14 +1042,14 @@ export function AdminDashboardView() {
                 setManualMode(false)
                 setManualProduct({ name: '', price: '', imageUrl: '' })
               }}
-              className="border-slate-600 text-slate-300"
+              className="border-white/30 text-white hover:bg-white/10"
             >
               Cancelar
             </Button>
             <Button
               onClick={handleAddProduct}
               disabled={addingProduct}
-              className="bg-orange-600 hover:bg-orange-700"
+              className="bg-orange-600 hover:bg-orange-700 text-white"
             >
               {addingProduct ? (
                 <div className="flex items-center gap-2">
