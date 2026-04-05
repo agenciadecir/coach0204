@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
       
       if (!extractedData) {
         return NextResponse.json(
-          { error: 'No se pudo extraer información del producto de Mercado Libre' },
+          { error: 'No se pudo extraer información del producto. Verificá que sea un enlace válido de Mercado Libre.' },
           { status: 400 }
         )
       }
@@ -93,6 +93,19 @@ export async function POST(req: NextRequest) {
   }
 }
 
+// Resolve short URLs (like meli.la) to get the final URL
+async function resolveShortUrl(url: string): Promise<string> {
+  try {
+    const response = await fetch(url, {
+      method: 'HEAD',
+      redirect: 'follow',
+    })
+    return response.url
+  } catch {
+    return url
+  }
+}
+
 // Extract product info from Mercado Libre
 async function extractMercadoLibreInfo(url: string): Promise<{
   name: string
@@ -100,16 +113,26 @@ async function extractMercadoLibreInfo(url: string): Promise<{
   imageUrl: string
 } | null> {
   try {
+    // Resolve short URLs (meli.la, etc.)
+    let finalUrl = url
+    if (url.includes('meli.la') || url.includes('mercadolibre.cl') || url.includes('mercadolibre.com.mx')) {
+      finalUrl = await resolveShortUrl(url)
+      console.log('Resolved URL:', finalUrl)
+    }
+
     // Validate it's a Mercado Libre URL
-    if (!url.includes('mercadolibre.com.ar') && !url.includes('mercadolibre.com')) {
-      console.error('URL is not from Mercado Libre')
+    if (!finalUrl.includes('mercadolibre.com.ar') && 
+        !finalUrl.includes('mercadolibre.com') &&
+        !finalUrl.includes('mercadolibre.cl') &&
+        !finalUrl.includes('mercadolibre.com.mx')) {
+      console.error('URL is not from Mercado Libre:', finalUrl)
       return null
     }
 
     const zai = await ZAI.create()
     
     const result = await zai.functions.invoke('page_reader', {
-      url: url
+      url: finalUrl
     })
 
     const html = result.data.html
