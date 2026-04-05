@@ -88,6 +88,8 @@ export function AdminDashboardView() {
   const [addProductOpen, setAddProductOpen] = useState(false)
   const [productUrl, setProductUrl] = useState('')
   const [addingProduct, setAddingProduct] = useState(false)
+  const [manualMode, setManualMode] = useState(false)
+  const [manualProduct, setManualProduct] = useState({ name: '', price: '', imageUrl: '' })
   
   const { toast } = useToast()
 
@@ -207,6 +209,48 @@ export function AdminDashboardView() {
       return
     }
 
+    // If manual mode, validate manual fields
+    if (manualMode) {
+      if (!manualProduct.name || !manualProduct.price || !manualProduct.imageUrl) {
+        toast({ title: 'Completa todos los campos manuales', variant: 'destructive' })
+        return
+      }
+
+      setAddingProduct(true)
+      try {
+        const res = await fetch('/api/products', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            productUrl,
+            name: manualProduct.name,
+            price: manualProduct.price,
+            imageUrl: manualProduct.imageUrl
+          })
+        })
+
+        const data = await res.json()
+
+        if (!res.ok) {
+          toast({ title: data.error || 'Error al agregar producto', variant: 'destructive' })
+          return
+        }
+
+        toast({ title: 'Producto agregado exitosamente' })
+        setAddProductOpen(false)
+        setProductUrl('')
+        setManualMode(false)
+        setManualProduct({ name: '', price: '', imageUrl: '' })
+        fetchData()
+      } catch (error) {
+        toast({ title: 'Error de conexión', variant: 'destructive' })
+      } finally {
+        setAddingProduct(false)
+      }
+      return
+    }
+
+    // Auto-extraction mode
     setAddingProduct(true)
     try {
       const res = await fetch('/api/products', {
@@ -218,7 +262,9 @@ export function AdminDashboardView() {
       const data = await res.json()
 
       if (!res.ok) {
-        toast({ title: data.error || 'Error al agregar producto', variant: 'destructive' })
+        // Show manual mode option on failure
+        toast({ title: 'No se pudo extraer automáticamente. Completa los campos manualmente.', variant: 'destructive' })
+        setManualMode(true)
         return
       }
 
@@ -227,7 +273,8 @@ export function AdminDashboardView() {
       setProductUrl('')
       fetchData()
     } catch (error) {
-      toast({ title: 'Error de conexión', variant: 'destructive' })
+      toast({ title: 'Error de conexión. Intenta el modo manual.', variant: 'destructive' })
+      setManualMode(true)
     } finally {
       setAddingProduct(false)
     }
@@ -832,29 +879,90 @@ export function AdminDashboardView() {
       </Dialog>
 
       {/* Add Product Dialog */}
-      <Dialog open={addProductOpen} onOpenChange={setAddProductOpen}>
-        <DialogContent className="bg-slate-800 border-slate-700">
+      <Dialog open={addProductOpen} onOpenChange={(open) => {
+        setAddProductOpen(open)
+        if (!open) {
+          setManualMode(false)
+          setManualProduct({ name: '', price: '', imageUrl: '' })
+        }
+      }}>
+        <DialogContent className="bg-slate-800 border-slate-700 max-w-md">
           <DialogHeader>
             <DialogTitle className="text-white">Agregar Producto</DialogTitle>
             <DialogDescription className="text-slate-400">
-              Pega un enlace de Mercado Libre o de afiliado (meli.la). Se extraerán automáticamente la imagen, nombre y precio.
+              Pega un enlace de Mercado Libre o de afiliado (meli.la)
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label className="text-slate-300">Enlace de Mercado Libre</Label>
+              <Label className="text-slate-300">Enlace del producto</Label>
               <Input
                 value={productUrl}
-                onChange={(e) => setProductUrl(e.target.value)}
+                onChange={(e) => {
+                  setProductUrl(e.target.value)
+                  setManualMode(false)
+                }}
                 className="bg-slate-700 border-slate-600 text-white"
-                placeholder="https://www.mercadolibre.com.ar/..."
+                placeholder="https://meli.la/... o https://mercadolibre.com.ar/..."
               />
             </div>
+            
+            {manualMode && (
+              <>
+                <div className="p-3 bg-orange-500/20 border border-orange-500/30 rounded-lg">
+                  <p className="text-orange-300 text-sm">
+                    No se pudo extraer automáticamente. Completa los campos:
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-slate-300">Nombre del producto *</Label>
+                  <Input
+                    value={manualProduct.name}
+                    onChange={(e) => setManualProduct({ ...manualProduct, name: e.target.value })}
+                    className="bg-slate-700 border-slate-600 text-white"
+                    placeholder="Nombre del producto"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-slate-300">Precio *</Label>
+                  <Input
+                    value={manualProduct.price}
+                    onChange={(e) => setManualProduct({ ...manualProduct, price: e.target.value })}
+                    className="bg-slate-700 border-slate-600 text-white"
+                    placeholder="$ 10.000"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-slate-300">URL de imagen *</Label>
+                  <Input
+                    value={manualProduct.imageUrl}
+                    onChange={(e) => setManualProduct({ ...manualProduct, imageUrl: e.target.value })}
+                    className="bg-slate-700 border-slate-600 text-white"
+                    placeholder="https://..."
+                  />
+                </div>
+              </>
+            )}
+            
+            {!manualMode && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setManualMode(true)}
+                className="text-slate-400 hover:text-white"
+              >
+                ¿Problemas? Ingresar datos manualmente
+              </Button>
+            )}
           </div>
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => setAddProductOpen(false)}
+              onClick={() => {
+                setAddProductOpen(false)
+                setManualMode(false)
+                setManualProduct({ name: '', price: '', imageUrl: '' })
+              }}
               className="border-slate-600 text-slate-300"
             >
               Cancelar
@@ -867,10 +975,10 @@ export function AdminDashboardView() {
               {addingProduct ? (
                 <div className="flex items-center gap-2">
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Extrayendo...
+                  {manualMode ? 'Guardando...' : 'Extrayendo...'}
                 </div>
               ) : (
-                'Agregar Producto'
+                manualMode ? 'Guardar Producto' : 'Agregar Producto'
               )}
             </Button>
           </DialogFooter>

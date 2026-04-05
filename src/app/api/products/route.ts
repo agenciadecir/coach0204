@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import ZAI from 'z-ai-web-dev-sdk'
 
 // GET - List all active products (for students) or all products (for admin)
 export async function GET(req: NextRequest) {
@@ -47,7 +46,7 @@ export async function POST(req: NextRequest) {
       
       if (!extractedData) {
         return NextResponse.json(
-          { error: 'No se pudo extraer información del producto. Verificá que sea un enlace válido de Mercado Libre.' },
+          { error: 'No se pudo extraer información del producto. Intenta con otro enlace o completa los datos manualmente.' },
           { status: 400 }
         )
       }
@@ -97,8 +96,11 @@ export async function POST(req: NextRequest) {
 async function resolveShortUrl(url: string): Promise<string> {
   try {
     const response = await fetch(url, {
-      method: 'HEAD',
+      method: 'GET',
       redirect: 'follow',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      }
     })
     return response.url
   } catch {
@@ -106,7 +108,7 @@ async function resolveShortUrl(url: string): Promise<string> {
   }
 }
 
-// Extract product info from Mercado Libre
+// Extract product info from Mercado Libre using direct fetch
 async function extractMercadoLibreInfo(url: string): Promise<{
   name: string
   price: string
@@ -115,9 +117,10 @@ async function extractMercadoLibreInfo(url: string): Promise<{
   try {
     // Resolve short URLs (meli.la, etc.)
     let finalUrl = url
-    if (url.includes('meli.la') || url.includes('mercadolibre.cl') || url.includes('mercadolibre.com.mx')) {
+    if (url.includes('meli.la')) {
+      console.log('Resolving meli.la URL...')
       finalUrl = await resolveShortUrl(url)
-      console.log('Resolved URL:', finalUrl)
+      console.log('Resolved to:', finalUrl)
     }
 
     // Validate it's a Mercado Libre URL
@@ -129,19 +132,29 @@ async function extractMercadoLibreInfo(url: string): Promise<{
       return null
     }
 
-    const zai = await ZAI.create()
-    
-    const result = await zai.functions.invoke('page_reader', {
-      url: finalUrl
+    // Fetch the page HTML
+    console.log('Fetching page:', finalUrl)
+    const response = await fetch(finalUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'es-AR,es;q=0.8,en-US;q=0.5,en;q=0.3',
+      }
     })
 
-    const html = result.data.html
+    if (!response.ok) {
+      console.error('Failed to fetch page:', response.status)
+      return null
+    }
 
-    // Extract product name - Mercado Libre uses various patterns
+    const html = await response.text()
+    console.log('Got HTML, length:', html.length)
+
+    // Extract product name
     let name = ''
     
     // Try h1 with class ui-pdp-title
-    const titleMatch = html.match(/<h1[^>]*class="[^"]*ui-pdp-title[^"]*"[^>]*>(.*?)<\/h1>/i)
+    const titleMatch = html.match(/<h1[^>]*class="[^"]*ui-pdp-title[^"]*"[^>]*>([\s\S]*?)<\/h1>/i)
     if (titleMatch) {
       name = cleanHtml(titleMatch[1])
     }
@@ -158,7 +171,6 @@ async function extractMercadoLibreInfo(url: string): Promise<{
     if (!name) {
       const titleTagMatch = html.match(/<title>([^<]+)<\/title>/i)
       if (titleTagMatch) {
-        // Remove " | Mercado Libre" suffix
         name = titleTagMatch[1].split('|')[0].trim()
       }
     }
@@ -173,19 +185,20 @@ async function extractMercadoLibreInfo(url: string): Promise<{
       price = formatPrice(priceNum)
     }
 
-    // Fallback: try price span with class andes-money-amount
+    // Try to find price in spans
     if (!price) {
-      const priceSpanMatch = html.match(/<span[^>]*class="[^"]*andes-money-amount[^"]*"[^>]*>(.*?)<\/span>/i)
-      if (priceSpanMatch) {
-        price = cleanHtml(priceSpanMatch[1]).replace(/\s+/g, ' ').trim()
+      // Try andes-money-amount__fraction
+      const priceFractionMatch = html.match(/<span[^>]*class="[^"]*andes-money-amount__fraction[^"]*"[^>]*>([\s\S]*?)<\/span>/i)
+      if (priceFractionMatch) {
+        price = '$ ' + cleanHtml(priceFractionMatch[1])
       }
     }
 
-    // Fallback: try price fraction
     if (!price) {
-      const priceFractionMatch = html.match(/<span[^>]*class="[^"]*price-tag-fraction[^"]*"[^>]*>(.*?)<\/span>/i)
-      if (priceFractionMatch) {
-        price = '$ ' + cleanHtml(priceFractionMatch[1])
+      // Try price-tag-fraction
+      const priceTagMatch = html.match(/<span[^>]*class="[^"]*price-tag-fraction[^"]*"[^>]*>([\s\S]*?)<\/span>/i)
+      if (priceTagMatch) {
+        price = '$ ' + cleanHtml(priceTagMatch[1])
       }
     }
 
@@ -198,15 +211,15 @@ async function extractMercadoLibreInfo(url: string): Promise<{
       imageUrl = ogImageMatch[1]
     }
 
-    // Fallback: try figure with class ui-pdp-gallery
+    // Fallback: try data-zoom on images
     if (!imageUrl) {
-      const imgMatch = html.match(/<img[^>]*data-zoom="([^"]+)"/i)
-      if (imgMatch) {
-        imageUrl = imgMatch[1]
+      const imgZoomMatch = html.match(/<img[^>]*data-zoom="([^"]+)"/i)
+      if (imgZoomMatch) {
+        imageUrl = imgZoomMatch[1]
       }
     }
 
-    // Fallback: try any img with data-src or src from product gallery
+    // Fallback: try ui-pdp-gallery image
     if (!imageUrl) {
       const imgSrcMatch = html.match(/<img[^>]*(?:data-src|src)="([^"]+\.(?:jpg|jpeg|png|webp)[^"]*)"[^>]*class="[^"]*ui-pdp-image[^"]*"/i)
       if (imgSrcMatch) {
@@ -214,8 +227,18 @@ async function extractMercadoLibreInfo(url: string): Promise<{
       }
     }
 
+    // Another fallback: find any large image fromML static
+    if (!imageUrl) {
+      const mlImgMatch = html.match(/https?:\/\/http2\.mlstatic\.com\/[^\s"']+\.(?:jpg|jpeg|png|webp)/i)
+      if (mlImgMatch) {
+        imageUrl = mlImgMatch[0]
+      }
+    }
+
+    console.log('Extracted:', { name: name?.substring(0, 50), price, imageUrl: imageUrl?.substring(0, 50) })
+
     if (!name || !imageUrl) {
-      console.error('Could not extract required fields:', { name, price, imageUrl })
+      console.error('Could not extract required fields')
       return null
     }
 
