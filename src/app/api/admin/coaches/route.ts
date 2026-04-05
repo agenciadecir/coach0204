@@ -11,9 +11,11 @@ export async function GET() {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
     }
 
-    // Get all coaches
+    // Get all coaches - simple query
     const coaches = await db.user.findMany({
-      where: { role: 'COACH' },
+      where: { 
+        role: 'COACH'
+      },
       select: {
         id: true,
         name: true,
@@ -24,37 +26,22 @@ export async function GET() {
       orderBy: { createdAt: 'desc' }
     })
 
-    // Get student count for each coach through routines, diets and payments
+    console.log('Found coaches:', coaches.length, coaches.map(c => c.email))
+
+    // Get student count for each coach
     const coachesWithCount = await Promise.all(
       coaches.map(async (coach) => {
-        const [routinesStudents, dietsStudents, paymentsStudents] = await Promise.all([
-          db.routine.findMany({
-            where: { coachId: coach.id },
-            select: { studentId: true },
-            distinct: ['studentId']
-          }),
-          db.diet.findMany({
-            where: { coachId: coach.id },
-            select: { studentId: true },
-            distinct: ['studentId']
-          }),
-          db.payment.findMany({
-            where: { coachId: coach.id },
-            select: { studentId: true },
-            distinct: ['studentId']
-          })
-        ])
+        const routines = await db.routine.findMany({
+          where: { coachId: coach.id },
+          select: { studentId: true }
+        })
         
-        const allStudentIds = new Set([
-          ...routinesStudents.map(r => r.studentId),
-          ...dietsStudents.map(d => d.studentId),
-          ...paymentsStudents.map(p => p.studentId)
-        ])
+        const uniqueStudents = new Set(routines.map(r => r.studentId))
         
         return {
           ...coach,
           _count: {
-            students: allStudentIds.size
+            students: uniqueStudents.size
           }
         }
       })
@@ -63,6 +50,6 @@ export async function GET() {
     return NextResponse.json(coachesWithCount)
   } catch (error) {
     console.error('Error fetching coaches:', error)
-    return NextResponse.json({ error: 'Error al obtener coaches' }, { status: 500 })
+    return NextResponse.json({ error: 'Error al obtener coaches', details: String(error) }, { status: 500 })
   }
 }
