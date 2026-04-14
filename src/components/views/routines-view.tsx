@@ -286,6 +286,7 @@ export function RoutinesView() {
   const [editingWeightId, setEditingWeightId] = useState<string | null>(null)
   const [editingWeightValue, setEditingWeightValue] = useState<string>('')
   const [savingWeight, setSavingWeight] = useState(false)
+  const [weightLogs, setWeightLogs] = useState<Record<string, {weight: string, date: string, reps?: string | null}[]>>({})
   const { setCurrentView, setSelectedStudentId } = useAppStore()
   const { toast } = useToast()
 
@@ -421,23 +422,50 @@ export function RoutinesView() {
     }
   }
 
+  // Fetch weight logs for an exercise
+  const fetchWeightLogs = async (exerciseId: string) => {
+    try {
+      const res = await fetch(`/api/exercise-weight-logs?exerciseId=${exerciseId}`)
+      const data = await res.json()
+      if (Array.isArray(data)) {
+        setWeightLogs(prev => ({
+          ...prev,
+          [exerciseId]: data.map((log: any) => ({
+            weight: log.weight,
+            date: log.date,
+            reps: log.reps
+          }))
+        }))
+      }
+    } catch (error) {
+      console.error('Error fetching weight logs:', error)
+    }
+  }
+
   const handleSaveWeight = async (exerciseId: string, weight: string) => {
+    if (!weight.trim()) return
+    
     setSavingWeight(true)
     try {
-      const res = await fetch(`/api/routine-exercises/${exerciseId}`, {
-        method: 'PUT',
+      // Create weight log
+      const logRes = await fetch('/api/exercise-weight-logs', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ weight })
+        body: JSON.stringify({ 
+          routineExerciseId: exerciseId, 
+          weight 
+        })
       })
 
-      if (!res.ok) throw new Error('Error')
+      if (!logRes.ok) throw new Error('Error')
+      
+      const newLog = await logRes.json()
 
-      // Update local state
+      // Update local state with new weight
       setRoutines(prev => prev.map(r => {
         return {
           ...r,
           trainingDays: r.trainingDays.map(d => {
-            // Update in weeks if present
             const updatedWeeks = d.weeks?.map(w => ({
               ...w,
               exercises: w.exercises.map(ex =>
@@ -447,7 +475,6 @@ export function RoutinesView() {
               )
             })) || []
             
-            // Also update in legacy exercises
             const updatedExercises = d.exercises?.map(ex =>
               ex.id === exerciseId
                 ? { ...ex, weight }
@@ -492,6 +519,15 @@ export function RoutinesView() {
           })
         }
       })
+
+      // Update weight logs - add new log at the beginning
+      setWeightLogs(prev => ({
+        ...prev,
+        [exerciseId]: [
+          { weight: newLog.weight, date: newLog.date, reps: newLog.reps },
+          ...(prev[exerciseId] || [])
+        ].slice(0, 5)
+      }))
 
       toast({ title: 'Peso guardado' })
     } catch (error) {
@@ -771,8 +807,8 @@ export function RoutinesView() {
                         )}
 
                         {!imageSrc && (
-                          <div className="w-20 h-20 rounded-lg bg-slate-600/50 flex items-center justify-center flex-shrink-0">
-                            <Dumbbell className="w-8 h-8 text-slate-400" />
+                          <div className="w-12 h-12 rounded-lg bg-slate-600/30 flex items-center justify-center flex-shrink-0">
+                            <span className="text-lg text-slate-500 font-bold">{i + 1}</span>
                           </div>
                         )}
 
@@ -818,21 +854,26 @@ export function RoutinesView() {
                                     }
                                     setEditingWeightValue(e.target.value)
                                   }}
-                                  onBlur={async () => {
-                                    if (editingWeightId === ex.id && editingWeightValue !== (ex.weight || '')) {
-                                      await handleSaveWeight(ex.id, editingWeightValue)
-                                    }
-                                    setEditingWeightId(null)
-                                  }}
-                                  onKeyDown={async (e) => {
-                                    if (e.key === 'Enter') {
-                                      e.currentTarget.blur()
+                                  onFocus={() => {
+                                    // Load weight logs when focusing
+                                    if (!weightLogs[ex.id]) {
+                                      fetchWeightLogs(ex.id)
                                     }
                                   }}
                                   placeholder="kg"
                                   className="w-16 px-2 py-0.5 text-sm bg-slate-700/50 border border-slate-600 rounded text-white placeholder:text-slate-500 focus:border-emerald-500 focus:outline-none"
                                 />
                                 <span className="text-slate-400 text-sm">kg</span>
+                                {editingWeightId === ex.id && editingWeightValue && editingWeightValue !== (ex.weight || '') && (
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handleSaveWeight(ex.id, editingWeightValue)}
+                                    disabled={savingWeight}
+                                    className="h-6 px-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs"
+                                  >
+                                    {savingWeight ? '...' : '✓'}
+                                  </Button>
+                                )}
                               </div>
                             ) : (
                               ex.weight && (
@@ -840,6 +881,32 @@ export function RoutinesView() {
                               )
                             )}
                           </div>
+
+                          {/* Weight history for students */}
+                          {!isCoach && weightLogs[ex.id] && weightLogs[ex.id].length > 0 && (
+                            <div className="mt-2 flex flex-wrap gap-1">
+                              {weightLogs[ex.id].slice(0, 5).map((log, idx) => {
+                                const date = new Date(log.date)
+                                const formattedDate = `${date.getDate()}/${date.getMonth() + 1}`
+                                return (
+                                  <button
+                                    key={idx}
+                                    onClick={() => {
+                                      setEditingWeightId(ex.id)
+                                      setEditingWeightValue(log.weight)
+                                    }}
+                                    className={`px-2 py-0.5 rounded text-xs ${
+                                      idx === 0 
+                                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' 
+                                        : 'bg-slate-700/50 text-slate-400 hover:bg-slate-700'
+                                    }`}
+                                  >
+                                    {log.weight}kg <span className="opacity-60">{formattedDate}</span>
+                                  </button>
+                                )
+                              })}
+                            </div>
+                          )}
 
                           {/* Coach sees indicator when student has entered weight */}
                           {isCoach && ex.weight && (
@@ -863,12 +930,6 @@ export function RoutinesView() {
                         </div>
 
                         <div className="flex flex-col items-end gap-2">
-                          <div className="flex items-center gap-2">
-                            <Badge variant="outline" className="text-sm text-slate-300 border-slate-600 px-3 py-1">
-                              {ex.sets}×{ex.reps}
-                            </Badge>
-                          </div>
-
                           <div className="flex items-center gap-1 text-slate-400 text-sm">
                             <Clock className="w-3 h-3" />
                             {ex.restTime || 60}s

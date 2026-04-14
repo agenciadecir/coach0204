@@ -146,10 +146,26 @@ model RoutineExercise {
   exercise        Exercise?     @relation(fields: [exerciseId], references: [id])
   trainingDay     TrainingDay?  @relation(fields: [trainingDayId], references: [id], onDelete: Cascade)
   week            RoutineWeek?  @relation(fields: [weekId], references: [id], onDelete: Cascade)
+  weightLogs      ExerciseWeightLog[]
 
   @@index([trainingDayId])
   @@index([weekId])
   @@map("routine_exercises")
+}
+
+model ExerciseWeightLog {
+  id                String        @id @default(cuid())
+  routineExerciseId String
+  weight            String
+  reps              String?
+  date              DateTime      @default(now())
+  notes             String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  routineExercise   RoutineExercise @relation(fields: [routineExerciseId], references: [id], onDelete: Cascade)
+
+  @@index([routineExerciseId, date])
+  @@map("exercise_weight_logs")
 }
 
 model Diet {
