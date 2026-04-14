@@ -3,7 +3,7 @@ import { db } from '@/lib/db'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 
-// PUT - Update routine exercise (for student notes and weight)
+// PUT - Update routine exercise (for student notes, weight, sets, reps)
 export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -17,7 +17,7 @@ export async function PUT(
     }
 
     const body = await req.json()
-    const { studentNotes, weight } = body
+    const { studentNotes, weight, sets, reps } = body
 
     // Get the exercise with training day and routine to verify ownership
     const routineExercise = await db.routineExercise.findUnique({
@@ -62,7 +62,7 @@ export async function PUT(
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 })
     }
 
-    // Students can only update weight and studentNotes
+    // Students can update weight, studentNotes, sets, and reps
     // Coaches can update all fields
     const updateData: any = {}
     
@@ -70,9 +70,16 @@ export async function PUT(
       updateData.studentNotes = studentNotes
     }
     
-    // Weight can be updated by students (for their records) or coaches
     if (weight !== undefined) {
       updateData.weight = weight
+    }
+
+    if (sets !== undefined) {
+      updateData.sets = sets
+    }
+
+    if (reps !== undefined) {
+      updateData.reps = reps
     }
 
     const updated = await db.routineExercise.update({

@@ -537,6 +537,76 @@ export function RoutinesView() {
     }
   }
 
+  // Save sets (series)
+  const handleSaveSets = async (exerciseId: string, sets: number) => {
+    try {
+      await fetch(`/api/routine-exercises/${exerciseId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sets })
+      })
+
+      // Update local state
+      setSelectedRoutine(prev => {
+        if (!prev) return prev
+        return {
+          ...prev,
+          trainingDays: prev.trainingDays.map(d => ({
+            ...d,
+            weeks: d.weeks?.map(w => ({
+              ...w,
+              exercises: w.exercises.map(ex =>
+                ex.id === exerciseId ? { ...ex, sets } : ex
+              )
+            })) || [],
+            exercises: d.exercises?.map(ex =>
+              ex.id === exerciseId ? { ...ex, sets } : ex
+            ) || []
+          }))
+        }
+      })
+
+      toast({ title: 'Series actualizadas' })
+    } catch (error) {
+      toast({ title: 'Error al guardar', variant: 'destructive' })
+    }
+  }
+
+  // Save reps
+  const handleSaveReps = async (exerciseId: string, reps: string) => {
+    try {
+      await fetch(`/api/routine-exercises/${exerciseId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reps })
+      })
+
+      // Update local state
+      setSelectedRoutine(prev => {
+        if (!prev) return prev
+        return {
+          ...prev,
+          trainingDays: prev.trainingDays.map(d => ({
+            ...d,
+            weeks: d.weeks?.map(w => ({
+              ...w,
+              exercises: w.exercises.map(ex =>
+                ex.id === exerciseId ? { ...ex, reps } : ex
+              )
+            })) || [],
+            exercises: d.exercises?.map(ex =>
+              ex.id === exerciseId ? { ...ex, reps } : ex
+            ) || []
+          }))
+        }
+      })
+
+      toast({ title: 'Reps actualizadas' })
+    } catch (error) {
+      toast({ title: 'Error al guardar', variant: 'destructive' })
+    }
+  }
+
   const extractYouTubeId = (url: string): string | null => {
     if (!url) return null
     const patterns = [
@@ -834,17 +904,48 @@ export function RoutinesView() {
                             )}
                           </div>
 
-                          <div className="flex items-center gap-2 mt-1 flex-wrap">
-                            <p className="text-slate-300">
-                              <span className="text-emerald-400 font-semibold">{ex.sets}</span>
-                              <span className="text-slate-500 mx-1">×</span>
-                              <span className="text-emerald-400 font-semibold">{ex.reps}</span>
-                            </p>
-                            
-                            {/* Weight - editable for students */}
-                            {!isCoach ? (
-                              <div className="flex items-center gap-1">
+                          {/* Series/Reps/Peso - editable for students */}
+                          {!isCoach ? (
+                            <div className="mt-2 space-y-2">
+                              {/* Fila principal: Series × Reps @ Peso */}
+                              <div className="flex items-center gap-2 flex-wrap">
+                                {/* Series */}
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    onClick={() => {
+                                      const newSets = Math.max(1, ex.sets - 1)
+                                      handleSaveSets(ex.id, newSets)
+                                    }}
+                                    className="w-6 h-6 rounded bg-slate-700 hover:bg-slate-600 text-slate-300 flex items-center justify-center text-lg"
+                                  >
+                                    −
+                                  </button>
+                                  <span className="text-emerald-400 font-bold text-lg w-6 text-center">{ex.sets}</span>
+                                  <button
+                                    onClick={() => {
+                                      const newSets = ex.sets + 1
+                                      handleSaveSets(ex.id, newSets)
+                                    }}
+                                    className="w-6 h-6 rounded bg-slate-700 hover:bg-slate-600 text-slate-300 flex items-center justify-center text-lg"
+                                  >
+                                    +
+                                  </button>
+                                </div>
+                                <span className="text-slate-500">×</span>
+                                {/* Reps */}
+                                <input
+                                  type="text"
+                                  defaultValue={ex.reps}
+                                  onBlur={(e) => {
+                                    if (e.target.value !== ex.reps) {
+                                      handleSaveReps(ex.id, e.target.value)
+                                    }
+                                  }}
+                                  placeholder="reps"
+                                  className="w-16 px-2 py-0.5 text-sm bg-slate-700/50 border border-slate-600 rounded text-emerald-400 font-semibold text-center placeholder:text-slate-500 focus:border-emerald-500 focus:outline-none"
+                                />
                                 <span className="text-slate-400">@</span>
+                                {/* Peso */}
                                 <input
                                   type="text"
                                   value={editingWeightId === ex.id ? editingWeightValue : (ex.weight || '')}
@@ -855,7 +956,6 @@ export function RoutinesView() {
                                     setEditingWeightValue(e.target.value)
                                   }}
                                   onFocus={() => {
-                                    // Load weight logs when focusing
                                     if (!weightLogs[ex.id]) {
                                       fetchWeightLogs(ex.id)
                                     }
@@ -864,47 +964,57 @@ export function RoutinesView() {
                                   className="w-16 px-2 py-0.5 text-sm bg-slate-700/50 border border-slate-600 rounded text-white placeholder:text-slate-500 focus:border-emerald-500 focus:outline-none"
                                 />
                                 <span className="text-slate-400 text-sm">kg</span>
-                                {editingWeightId === ex.id && editingWeightValue && editingWeightValue !== (ex.weight || '') && (
-                                  <Button
-                                    size="sm"
-                                    onClick={() => handleSaveWeight(ex.id, editingWeightValue)}
-                                    disabled={savingWeight}
-                                    className="h-6 px-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs"
-                                  >
-                                    {savingWeight ? '...' : '✓'}
-                                  </Button>
+                              </div>
+
+                              {/* Botón guardar peso + historial rápido */}
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleSaveWeight(ex.id, editingWeightId === ex.id ? editingWeightValue : (ex.weight || ''))}
+                                  disabled={savingWeight || !(editingWeightId === ex.id ? editingWeightValue : (ex.weight || ''))}
+                                  className="h-7 px-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs"
+                                >
+                                  {savingWeight ? 'Guardando...' : '💾 Guardar'}
+                                </Button>
+                                
+                                {/* Historial de pesos como chips */}
+                                {weightLogs[ex.id] && weightLogs[ex.id].length > 0 && (
+                                  <div className="flex gap-1 flex-wrap">
+                                    {weightLogs[ex.id].slice(0, 4).map((log, idx) => {
+                                      const date = new Date(log.date)
+                                      const formattedDate = `${date.getDate()}/${date.getMonth() + 1}`
+                                      return (
+                                        <button
+                                          key={idx}
+                                          onClick={() => {
+                                            setEditingWeightId(ex.id)
+                                            setEditingWeightValue(log.weight)
+                                          }}
+                                          className={`px-2 py-0.5 rounded text-xs ${
+                                            idx === 0 
+                                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' 
+                                              : 'bg-slate-700/50 text-slate-400 hover:bg-slate-600'
+                                          }`}
+                                        >
+                                          {log.weight}kg
+                                        </button>
+                                      )
+                                    })}
+                                  </div>
                                 )}
                               </div>
-                            ) : (
-                              ex.weight && (
+                            </div>
+                          ) : (
+                            // Coach view
+                            <div className="flex items-center gap-2 mt-1">
+                              <p className="text-slate-300">
+                                <span className="text-emerald-400 font-semibold">{ex.sets}</span>
+                                <span className="text-slate-500 mx-1">×</span>
+                                <span className="text-emerald-400 font-semibold">{ex.reps}</span>
+                              </p>
+                              {ex.weight && (
                                 <span className="text-emerald-400 font-medium">@ {ex.weight}kg</span>
-                              )
-                            )}
-                          </div>
-
-                          {/* Weight history for students */}
-                          {!isCoach && weightLogs[ex.id] && weightLogs[ex.id].length > 0 && (
-                            <div className="mt-2 flex flex-wrap gap-1">
-                              {weightLogs[ex.id].slice(0, 5).map((log, idx) => {
-                                const date = new Date(log.date)
-                                const formattedDate = `${date.getDate()}/${date.getMonth() + 1}`
-                                return (
-                                  <button
-                                    key={idx}
-                                    onClick={() => {
-                                      setEditingWeightId(ex.id)
-                                      setEditingWeightValue(log.weight)
-                                    }}
-                                    className={`px-2 py-0.5 rounded text-xs ${
-                                      idx === 0 
-                                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' 
-                                        : 'bg-slate-700/50 text-slate-400 hover:bg-slate-700'
-                                    }`}
-                                  >
-                                    {log.weight}kg <span className="opacity-60">{formattedDate}</span>
-                                  </button>
-                                )
-                              })}
+                              )}
                             </div>
                           )}
 
