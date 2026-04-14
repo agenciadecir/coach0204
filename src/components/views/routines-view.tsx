@@ -30,7 +30,8 @@ import {
   ChevronRight,
   ChevronDown,
   ChevronUp,
-  Calendar
+  Calendar,
+  Pencil
 } from 'lucide-react'
 import { useAppStore } from '@/hooks/use-store'
 import { useToast } from '@/hooks/use-toast'
@@ -283,10 +284,17 @@ export function RoutinesView() {
   const [savingNote, setSavingNote] = useState(false)
   const [videoDialogOpen, setVideoDialogOpen] = useState(false)
   const [selectedVideoUrl, setSelectedVideoUrl] = useState<string | null>(null)
-  const [editingWeightId, setEditingWeightId] = useState<string | null>(null)
-  const [editingWeightValue, setEditingWeightValue] = useState<string>('')
-  const [savingWeight, setSavingWeight] = useState(false)
-  const [weightLogs, setWeightLogs] = useState<Record<string, {weight: string, date: string, reps?: string | null}[]>>({})
+  
+  // Edit mode state
+  const [editModeId, setEditModeId] = useState<string | null>(null)
+  const [editSets, setEditSets] = useState<number>(3)
+  const [editReps, setEditReps] = useState<string>('')
+  const [editWeight, setEditWeight] = useState<string>('')
+  const [savingEdit, setSavingEdit] = useState(false)
+  
+  // Exercise logs (history of changes)
+  const [exerciseLogs, setExerciseLogs] = useState<Record<string, {date: string, sets: number, reps: string, weight: string}[]>>({})
+  
   const { setCurrentView, setSelectedStudentId } = useAppStore()
   const { toast } = useToast()
 
@@ -422,188 +430,120 @@ export function RoutinesView() {
     }
   }
 
-  // Fetch weight logs for an exercise
-  const fetchWeightLogs = async (exerciseId: string) => {
+  // Enter edit mode for an exercise
+  const enterEditMode = (ex: RoutineExercise) => {
+    setEditModeId(ex.id)
+    setEditSets(ex.sets)
+    setEditReps(ex.reps)
+    setEditWeight(ex.weight || '')
+    // Load logs for this exercise
+    fetchExerciseLogs(ex.id)
+  }
+
+  // Cancel edit mode
+  const cancelEdit = () => {
+    setEditModeId(null)
+    setEditSets(3)
+    setEditReps('')
+    setEditWeight('')
+  }
+
+  // Fetch exercise logs
+  const fetchExerciseLogs = async (exerciseId: string) => {
     try {
       const res = await fetch(`/api/exercise-weight-logs?exerciseId=${exerciseId}`)
       const data = await res.json()
-      if (Array.isArray(data)) {
-        setWeightLogs(prev => ({
+      if (Array.isArray(data) && data.length > 0) {
+        setExerciseLogs(prev => ({
           ...prev,
           [exerciseId]: data.map((log: any) => ({
-            weight: log.weight,
             date: log.date,
-            reps: log.reps
+            sets: log.sets || 0,
+            reps: log.reps || '',
+            weight: log.weight || ''
           }))
         }))
       }
     } catch (error) {
-      console.error('Error fetching weight logs:', error)
+      console.error('Error fetching exercise logs:', error)
     }
   }
 
-  const handleSaveWeight = async (exerciseId: string, weight: string) => {
-    if (!weight.trim()) return
-    
-    setSavingWeight(true)
+  // Save edit (sets, reps, weight)
+  const handleSaveEdit = async (exerciseId: string) => {
+    setSavingEdit(true)
     try {
-      // Create weight log
+      // Update the exercise
+      await fetch(`/api/routine-exercises/${exerciseId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          sets: editSets, 
+          reps: editReps, 
+          weight: editWeight 
+        })
+      })
+
+      // Create a log entry
       const logRes = await fetch('/api/exercise-weight-logs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           routineExerciseId: exerciseId, 
-          weight 
+          weight: editWeight,
+          reps: editReps,
+          sets: editSets
         })
       })
 
-      if (!logRes.ok) throw new Error('Error')
-      
-      const newLog = await logRes.json()
+      let newLog = null
+      try {
+        newLog = await logRes.json()
+      } catch (e) {
+        // Log creation might fail if table doesn't exist
+      }
 
-      // Update local state with new weight
-      setRoutines(prev => prev.map(r => {
-        return {
-          ...r,
-          trainingDays: r.trainingDays.map(d => {
-            const updatedWeeks = d.weeks?.map(w => ({
-              ...w,
-              exercises: w.exercises.map(ex =>
-                ex.id === exerciseId
-                  ? { ...ex, weight }
-                  : ex
-              )
-            })) || []
-            
-            const updatedExercises = d.exercises?.map(ex =>
-              ex.id === exerciseId
-                ? { ...ex, weight }
-                : ex
-            ) || []
-            
-            return {
-              ...d,
-              weeks: updatedWeeks,
-              exercises: updatedExercises
-            }
-          })
-        }
-      }))
-
-      // Update selected routine
+      // Update local state
       setSelectedRoutine(prev => {
         if (!prev) return prev
         return {
           ...prev,
-          trainingDays: prev.trainingDays.map(d => {
-            const updatedWeeks = d.weeks?.map(w => ({
+          trainingDays: prev.trainingDays.map(d => ({
+            ...d,
+            weeks: d.weeks?.map(w => ({
               ...w,
               exercises: w.exercises.map(ex =>
-                ex.id === exerciseId
-                  ? { ...ex, weight }
+                ex.id === exerciseId 
+                  ? { ...ex, sets: editSets, reps: editReps, weight: editWeight } 
                   : ex
               )
-            })) || []
-            
-            const updatedExercises = d.exercises?.map(ex =>
-              ex.id === exerciseId
-                ? { ...ex, weight }
+            })) || [],
+            exercises: d.exercises?.map(ex =>
+              ex.id === exerciseId 
+                ? { ...ex, sets: editSets, reps: editReps, weight: editWeight } 
                 : ex
             ) || []
-            
-            return {
-              ...d,
-              weeks: updatedWeeks,
-              exercises: updatedExercises
-            }
-          })
+          }))
         }
       })
 
-      // Update weight logs - add new log at the beginning
-      setWeightLogs(prev => ({
-        ...prev,
-        [exerciseId]: [
-          { weight: newLog.weight, date: newLog.date, reps: newLog.reps },
-          ...(prev[exerciseId] || [])
-        ].slice(0, 5)
-      }))
+      // Add to local logs
+      if (newLog) {
+        setExerciseLogs(prev => ({
+          ...prev,
+          [exerciseId]: [
+            { date: new Date().toISOString(), sets: editSets, reps: editReps, weight: editWeight },
+            ...(prev[exerciseId] || [])
+          ].slice(0, 5)
+        }))
+      }
 
-      toast({ title: 'Peso guardado' })
+      toast({ title: 'Cambios guardados' })
+      setEditModeId(null)
     } catch (error) {
-      toast({ title: 'Error al guardar peso', variant: 'destructive' })
+      toast({ title: 'Error al guardar', variant: 'destructive' })
     } finally {
-      setSavingWeight(false)
-    }
-  }
-
-  // Save sets (series)
-  const handleSaveSets = async (exerciseId: string, sets: number) => {
-    try {
-      await fetch(`/api/routine-exercises/${exerciseId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sets })
-      })
-
-      // Update local state
-      setSelectedRoutine(prev => {
-        if (!prev) return prev
-        return {
-          ...prev,
-          trainingDays: prev.trainingDays.map(d => ({
-            ...d,
-            weeks: d.weeks?.map(w => ({
-              ...w,
-              exercises: w.exercises.map(ex =>
-                ex.id === exerciseId ? { ...ex, sets } : ex
-              )
-            })) || [],
-            exercises: d.exercises?.map(ex =>
-              ex.id === exerciseId ? { ...ex, sets } : ex
-            ) || []
-          }))
-        }
-      })
-
-      toast({ title: 'Series actualizadas' })
-    } catch (error) {
-      toast({ title: 'Error al guardar', variant: 'destructive' })
-    }
-  }
-
-  // Save reps
-  const handleSaveReps = async (exerciseId: string, reps: string) => {
-    try {
-      await fetch(`/api/routine-exercises/${exerciseId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reps })
-      })
-
-      // Update local state
-      setSelectedRoutine(prev => {
-        if (!prev) return prev
-        return {
-          ...prev,
-          trainingDays: prev.trainingDays.map(d => ({
-            ...d,
-            weeks: d.weeks?.map(w => ({
-              ...w,
-              exercises: w.exercises.map(ex =>
-                ex.id === exerciseId ? { ...ex, reps } : ex
-              )
-            })) || [],
-            exercises: d.exercises?.map(ex =>
-              ex.id === exerciseId ? { ...ex, reps } : ex
-            ) || []
-          }))
-        }
-      })
-
-      toast({ title: 'Reps actualizadas' })
-    } catch (error) {
-      toast({ title: 'Error al guardar', variant: 'destructive' })
+      setSavingEdit(false)
     }
   }
 
@@ -847,216 +787,212 @@ export function RoutinesView() {
                     const supersetLabel = isSuperset ? `Superserie ${ex.supersetOrder}` : null
                     const imageSrc = getExerciseImage(ex)
                     const hasVideo = ex.exercise?.videoUrl
+                    const isEditing = editModeId === ex.id
 
                     return (
                       <div
                         key={ex.id || `ex-${i}-${ex.exerciseName}`}
-                        className={`flex items-start gap-3 p-4 rounded-xl transition-all ${
+                        className={`p-4 rounded-xl transition-all ${
                           isSuperset
                             ? 'bg-purple-500/10 border border-purple-500/30'
-                            : 'bg-slate-700/50 hover:bg-slate-700/70'
+                            : isEditing 
+                              ? 'bg-emerald-500/10 border border-emerald-500/30'
+                              : 'bg-slate-700/50 hover:bg-slate-700/70'
                         }`}
                       >
-                        {/* Exercise thumbnail */}
-                        {imageSrc && (
-                          <div
-                            className="w-20 h-20 rounded-lg overflow-hidden flex-shrink-0 cursor-pointer relative group"
-                            onClick={() => hasVideo && openVideoDialog(ex.exercise?.videoUrl)}
-                          >
-                            <img
-                              src={imageSrc}
-                              alt={ex.exerciseName}
-                              className="w-full h-full object-cover"
-                            />
-                            {hasVideo && (
-                              <div className="absolute inset-0 bg-black/40 flex items-center justify-center group-hover:bg-black/50 transition-colors">
-                                <Play className="w-6 h-6 text-white" />
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        {!imageSrc && (
-                          <div className="w-12 h-12 rounded-lg bg-slate-600/30 flex items-center justify-center flex-shrink-0">
-                            <span className="text-lg text-slate-500 font-bold">{i + 1}</span>
-                          </div>
-                        )}
-
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <p className="text-white font-medium text-lg">{ex.exerciseName}</p>
-                            {isSuperset && (
-                              <Badge variant="outline" className="text-xs border-purple-500 text-purple-300">
-                                <Link className="w-3 h-3 mr-1" />
-                                {supersetLabel}
-                              </Badge>
-                            )}
-                            {hasVideo && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => openVideoDialog(ex.exercise?.videoUrl || null)}
-                                className="h-6 px-2 text-red-400 hover:text-red-300 hover:bg-red-500/10"
-                              >
-                                <Video className="w-3 h-3 mr-1" />
-                                Video
-                              </Button>
-                            )}
-                          </div>
-
-                          {/* Series/Reps/Peso - editable for students */}
-                          {!isCoach ? (
-                            <div className="mt-2 space-y-2">
-                              {/* Fila principal: Series × Reps @ Peso */}
-                              <div className="flex items-center gap-2 flex-wrap">
-                                {/* Series */}
-                                <div className="flex items-center gap-1">
-                                  <button
-                                    onClick={() => {
-                                      const newSets = Math.max(1, ex.sets - 1)
-                                      handleSaveSets(ex.id, newSets)
-                                    }}
-                                    className="w-6 h-6 rounded bg-slate-700 hover:bg-slate-600 text-slate-300 flex items-center justify-center text-lg"
-                                  >
-                                    −
-                                  </button>
-                                  <span className="text-emerald-400 font-bold text-lg w-6 text-center">{ex.sets}</span>
-                                  <button
-                                    onClick={() => {
-                                      const newSets = ex.sets + 1
-                                      handleSaveSets(ex.id, newSets)
-                                    }}
-                                    className="w-6 h-6 rounded bg-slate-700 hover:bg-slate-600 text-slate-300 flex items-center justify-center text-lg"
-                                  >
-                                    +
-                                  </button>
+                        <div className="flex items-start gap-3">
+                          {/* Exercise thumbnail */}
+                          {imageSrc && (
+                            <div
+                              className="w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 cursor-pointer relative group"
+                              onClick={() => hasVideo && openVideoDialog(ex.exercise?.videoUrl)}
+                            >
+                              <img
+                                src={imageSrc}
+                                alt={ex.exerciseName}
+                                className="w-full h-full object-cover"
+                              />
+                              {hasVideo && (
+                                <div className="absolute inset-0 bg-black/40 flex items-center justify-center group-hover:bg-black/50 transition-colors">
+                                  <Play className="w-5 h-5 text-white" />
                                 </div>
-                                <span className="text-slate-500">×</span>
-                                {/* Reps */}
-                                <input
-                                  type="text"
-                                  defaultValue={ex.reps}
-                                  onBlur={(e) => {
-                                    if (e.target.value !== ex.reps) {
-                                      handleSaveReps(ex.id, e.target.value)
-                                    }
-                                  }}
-                                  placeholder="reps"
-                                  className="w-16 px-2 py-0.5 text-sm bg-slate-700/50 border border-slate-600 rounded text-emerald-400 font-semibold text-center placeholder:text-slate-500 focus:border-emerald-500 focus:outline-none"
-                                />
-                                <span className="text-slate-400">@</span>
-                                {/* Peso */}
-                                <input
-                                  type="text"
-                                  value={editingWeightId === ex.id ? editingWeightValue : (ex.weight || '')}
-                                  onChange={(e) => {
-                                    if (editingWeightId !== ex.id) {
-                                      setEditingWeightId(ex.id)
-                                    }
-                                    setEditingWeightValue(e.target.value)
-                                  }}
-                                  onFocus={() => {
-                                    if (!weightLogs[ex.id]) {
-                                      fetchWeightLogs(ex.id)
-                                    }
-                                  }}
-                                  placeholder="kg"
-                                  className="w-16 px-2 py-0.5 text-sm bg-slate-700/50 border border-slate-600 rounded text-white placeholder:text-slate-500 focus:border-emerald-500 focus:outline-none"
-                                />
-                                <span className="text-slate-400 text-sm">kg</span>
-                              </div>
-
-                              {/* Botón guardar peso + historial rápido */}
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <Button
-                                  size="sm"
-                                  onClick={() => handleSaveWeight(ex.id, editingWeightId === ex.id ? editingWeightValue : (ex.weight || ''))}
-                                  disabled={savingWeight || !(editingWeightId === ex.id ? editingWeightValue : (ex.weight || ''))}
-                                  className="h-7 px-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs"
-                                >
-                                  {savingWeight ? 'Guardando...' : '💾 Guardar'}
-                                </Button>
-                                
-                                {/* Historial de pesos como chips */}
-                                {weightLogs[ex.id] && weightLogs[ex.id].length > 0 && (
-                                  <div className="flex gap-1 flex-wrap">
-                                    {weightLogs[ex.id].slice(0, 4).map((log, idx) => {
-                                      const date = new Date(log.date)
-                                      const formattedDate = `${date.getDate()}/${date.getMonth() + 1}`
-                                      return (
-                                        <button
-                                          key={idx}
-                                          onClick={() => {
-                                            setEditingWeightId(ex.id)
-                                            setEditingWeightValue(log.weight)
-                                          }}
-                                          className={`px-2 py-0.5 rounded text-xs ${
-                                            idx === 0 
-                                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' 
-                                              : 'bg-slate-700/50 text-slate-400 hover:bg-slate-600'
-                                          }`}
-                                        >
-                                          {log.weight}kg
-                                        </button>
-                                      )
-                                    })}
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          ) : (
-                            // Coach view
-                            <div className="flex items-center gap-2 mt-1">
-                              <p className="text-slate-300">
-                                <span className="text-emerald-400 font-semibold">{ex.sets}</span>
-                                <span className="text-slate-500 mx-1">×</span>
-                                <span className="text-emerald-400 font-semibold">{ex.reps}</span>
-                              </p>
-                              {ex.weight && (
-                                <span className="text-emerald-400 font-medium">@ {ex.weight}kg</span>
                               )}
                             </div>
                           )}
 
-                          {/* Coach sees indicator when student has entered weight */}
-                          {isCoach && ex.weight && (
-                            <p className="text-[10px] text-amber-400/70 flex items-center gap-1">
-                              <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400"></span>
-                              Peso registrado por alumno
-                            </p>
+                          {!imageSrc && (
+                            <div className="w-12 h-12 rounded-lg bg-slate-600/30 flex items-center justify-center flex-shrink-0">
+                              <span className="text-lg text-slate-500 font-bold">{i + 1}</span>
+                            </div>
                           )}
 
-                          {ex.notes && (
-                            <p className="text-sm text-slate-400 mt-2 bg-slate-800/50 px-2 py-1 rounded">
-                              📝 {ex.notes}
-                            </p>
-                          )}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="text-white font-medium text-lg">{ex.exerciseName}</p>
+                              {isSuperset && (
+                                <Badge variant="outline" className="text-xs border-purple-500 text-purple-300">
+                                  <Link className="w-3 h-3 mr-1" />
+                                  {supersetLabel}
+                                </Badge>
+                              )}
+                              {hasVideo && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => openVideoDialog(ex.exercise?.videoUrl || null)}
+                                  className="h-6 px-2 text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                                >
+                                  <Video className="w-3 h-3 mr-1" />
+                                  Video
+                                </Button>
+                              )}
+                            </div>
 
-                          {ex.studentNotes && (
-                            <p className="text-sm text-amber-400/90 mt-2 bg-amber-500/10 px-2 py-1 rounded border border-amber-500/20">
-                              ✏️ {ex.studentNotes}
-                            </p>
-                          )}
-                        </div>
+                            {/* NORMAL VIEW - Solo lectura */}
+                            {!isEditing && (
+                              <div className="flex items-center gap-2 mt-1">
+                                <p className="text-slate-300">
+                                  <span className="text-emerald-400 font-semibold">{ex.sets}</span>
+                                  <span className="text-slate-500 mx-1">×</span>
+                                  <span className="text-emerald-400 font-semibold">{ex.reps}</span>
+                                </p>
+                                {ex.weight && (
+                                  <span className="text-emerald-400 font-medium">@ {ex.weight}kg</span>
+                                )}
+                              </div>
+                            )}
 
-                        <div className="flex flex-col items-end gap-2">
-                          <div className="flex items-center gap-1 text-slate-400 text-sm">
-                            <Clock className="w-3 h-3" />
-                            {ex.restTime || 60}s
+                            {/* EDIT MODE */}
+                            {isEditing && !isCoach && (
+                              <div className="mt-3 space-y-3">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  {/* Series */}
+                                  <div className="flex items-center gap-1">
+                                    <button
+                                      onClick={() => setEditSets(Math.max(1, editSets - 1))}
+                                      className="w-8 h-8 rounded bg-slate-700 hover:bg-slate-600 text-slate-300 flex items-center justify-center text-xl"
+                                    >
+                                      −
+                                    </button>
+                                    <span className="text-emerald-400 font-bold text-xl w-8 text-center">{editSets}</span>
+                                    <button
+                                      onClick={() => setEditSets(editSets + 1)}
+                                      className="w-8 h-8 rounded bg-slate-700 hover:bg-slate-600 text-slate-300 flex items-center justify-center text-xl"
+                                    >
+                                      +
+                                    </button>
+                                  </div>
+                                  <span className="text-slate-500 text-lg">×</span>
+                                  {/* Reps */}
+                                  <input
+                                    type="text"
+                                    value={editReps}
+                                    onChange={(e) => setEditReps(e.target.value)}
+                                    placeholder="reps"
+                                    className="w-20 px-2 py-1 text-sm bg-slate-700/50 border border-slate-600 rounded text-emerald-400 font-semibold text-center placeholder:text-slate-500 focus:border-emerald-500 focus:outline-none"
+                                  />
+                                  <span className="text-slate-400">@</span>
+                                  {/* Peso */}
+                                  <input
+                                    type="text"
+                                    value={editWeight}
+                                    onChange={(e) => setEditWeight(e.target.value)}
+                                    placeholder="kg"
+                                    className="w-20 px-2 py-1 text-sm bg-slate-700/50 border border-slate-600 rounded text-white text-center placeholder:text-slate-500 focus:border-emerald-500 focus:outline-none"
+                                  />
+                                  <span className="text-slate-400 text-sm">kg</span>
+                                </div>
+                                
+                                {/* Botones guardar/cancelar */}
+                                <div className="flex gap-2">
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handleSaveEdit(ex.id)}
+                                    disabled={savingEdit}
+                                    className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                                  >
+                                    {savingEdit ? 'Guardando...' : '✓ Guardar'}
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={cancelEdit}
+                                    className="text-slate-400 hover:text-white"
+                                  >
+                                    Cancelar
+                                  </Button>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Coach sees indicator when student has entered weight */}
+                            {isCoach && ex.weight && (
+                              <p className="text-[10px] text-amber-400/70 flex items-center gap-1 mt-1">
+                                <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                                Peso registrado por alumno
+                              </p>
+                            )}
+
+                            {/* Historial de cambios */}
+                            {exerciseLogs[ex.id] && exerciseLogs[ex.id].length > 0 && (
+                              <div className="mt-2 space-y-1">
+                                {exerciseLogs[ex.id].map((log, idx) => {
+                                  const date = new Date(log.date)
+                                  const formattedDate = `${date.getDate()}/${date.getMonth() + 1}`
+                                  return (
+                                    <p key={idx} className="text-xs text-slate-500 flex items-center gap-1">
+                                      <span className="text-slate-600">📋</span>
+                                      {formattedDate}: {log.sets}×{log.reps} @ {log.weight}kg
+                                    </p>
+                                  )
+                                })}
+                              </div>
+                            )}
+
+                            {ex.notes && (
+                              <p className="text-sm text-slate-400 mt-2 bg-slate-800/50 px-2 py-1 rounded">
+                                📝 {ex.notes}
+                              </p>
+                            )}
+
+                            {ex.studentNotes && (
+                              <p className="text-sm text-amber-400/90 mt-2 bg-amber-500/10 px-2 py-1 rounded border border-amber-500/20">
+                                ✏️ {ex.studentNotes}
+                              </p>
+                            )}
                           </div>
 
-                          {/* Student notes button */}
-                          {!isCoach && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => openNoteDialog(ex)}
-                              className="text-amber-400 hover:text-amber-300 hover:bg-amber-500/10"
-                            >
-                              <MessageSquare className="w-4 h-4 mr-1" />
-                              {ex.studentNotes ? 'Editar' : 'Nota'}
-                            </Button>
-                          )}
+                          {/* Right side: Rest time + Actions */}
+                          <div className="flex flex-col items-end gap-2">
+                            <div className="flex items-center gap-1 text-slate-400 text-sm">
+                              <Clock className="w-3 h-3" />
+                              {ex.restTime || 60}s
+                            </div>
+
+                            {/* Edit button (pencil) for students */}
+                            {!isCoach && !isEditing && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => enterEditMode(ex)}
+                                className="text-slate-400 hover:text-emerald-400 hover:bg-emerald-500/10"
+                              >
+                                <Pencil className="w-4 h-4" />
+                              </Button>
+                            )}
+
+                            {/* Student notes button */}
+                            {!isCoach && !isEditing && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => openNoteDialog(ex)}
+                                className="text-amber-400 hover:text-amber-300 hover:bg-amber-500/10"
+                              >
+                                <MessageSquare className="w-4 h-4" />
+                              </Button>
+                            )}
+                          </div>
                         </div>
                       </div>
                     )

@@ -45,16 +45,21 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { routineExerciseId, weight, reps, notes } = body
+    const { routineExerciseId, weight, reps, sets, notes } = body
 
-    if (!routineExerciseId || !weight) {
-      return NextResponse.json({ error: 'Faltan campos requeridos' }, { status: 400 })
+    if (!routineExerciseId) {
+      return NextResponse.json({ error: 'routineExerciseId requerido' }, { status: 400 })
     }
 
-    // Update the current weight on the exercise (this always works)
+    // Update the current exercise (this always works)
+    const updateData: any = {}
+    if (weight !== undefined) updateData.weight = weight
+    if (reps !== undefined) updateData.reps = reps
+    if (sets !== undefined) updateData.sets = sets
+
     await db.routineExercise.update({
       where: { id: routineExerciseId },
-      data: { weight }
+      data: updateData
     })
 
     // Try to create a log entry (may fail if table doesn't exist)
@@ -63,26 +68,28 @@ export async function POST(req: NextRequest) {
       log = await db.exerciseWeightLog.create({
         data: {
           routineExerciseId,
-          weight,
+          weight: weight || '',
           reps: reps || null,
+          sets: sets || null,
           notes: notes || null,
           date: new Date()
         }
       })
     } catch (logError) {
-      // Table doesn't exist, that's ok - weight was still updated
-      console.log('Weight log table not available, weight updated anyway')
+      // Table doesn't exist, that's ok - exercise was still updated
+      console.log('Weight log table not available, exercise updated anyway')
     }
 
-    // Return the log or just the weight update confirmation
+    // Return the log or just the update confirmation
     return NextResponse.json(log || { 
       id: routineExerciseId, 
-      weight, 
-      date: new Date().toISOString(),
-      reps: reps || null 
+      weight: weight || '',
+      reps: reps || null,
+      sets: sets || null,
+      date: new Date().toISOString()
     })
   } catch (error) {
-    console.error('Error saving weight:', error)
+    console.error('Error saving exercise:', error)
     return NextResponse.json({ error: 'Error al guardar' }, { status: 500 })
   }
 }

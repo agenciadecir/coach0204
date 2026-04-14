@@ -158,6 +158,7 @@ model ExerciseWeightLog {
   routineExerciseId String
   weight            String
   reps              String?
+  sets              Int?
   date              DateTime      @default(now())
   notes             String?
   createdAt         DateTime      @default(now())
